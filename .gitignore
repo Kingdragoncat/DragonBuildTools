@@ -1,0 +1,23 @@
+.gradle/
+build/
+out/
+bin/
+
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+
+.DS_Store
+Thumbs.db
+
+# Local test asset folders created by tests
+images/
+models/
+videos/
+animations/
+heightmaps/

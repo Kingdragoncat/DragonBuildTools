@@ -1,0 +1,19 @@
+name: DragonBuildTools
+main: com.dragonbuildtools.DragonBuildToolsPlugin
+version: ${version}
+api-version: '1.20'
+depend: [FastAsyncWorldEdit]
+authors: [Kingdragoncat, Dustbeam]
+description: Building, 3D importing, animation, and procedural generation tools for FastAsyncWorldEdit.
+commands:
+  dbt:
+    description: Dragon Build Tools command and help guide
+    usage: /dbt [help|pixelart|model|animmodel|video|heightmap|text3d|newwfc|anim|files]
+    aliases: [dragonbuildtools, dbtools]
+permissions:
+  dragonbuildtools.use:
+    description: Allows using all Dragon Build Tools (DBT) commands.
+    default: op
+  dragonbuildtools.admin:
+    description: Allows managing Dragon Build Tools animations and settings.
+    default: op
