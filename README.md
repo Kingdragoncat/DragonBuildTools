@@ -8,15 +8,6 @@
   3D model importing, live animations, video screens, 3D WFC, terrain heightmaps, and <code>.obj</code> exporting for <b>FastAsyncWorldEdit</b>.
 </p>
 
-<p align="center">
-  <img src="assets/showcase/hero_animmodel.gif" width="48%" alt="Live 3D Animated Dragon">
-  <img src="assets/showcase/subblocks_comparison.gif" width="48%" alt="Sub-Blocks vs Full Cubes">
-</p>
-<p align="center">
-  <img src="assets/showcase/curved_video_screen.gif" width="48%" alt="Curved Video Screen">
-  <img src="assets/showcase/wfc_and_terrain.gif" width="48%" alt="3D Wave Function Collapse">
-</p>
-
 ---
 
 Dragon Build Tools (DBT) is a Paper/Spigot addon for FastAsyncWorldEdit that adds in-game tools for converting 3D meshes, images, heightmaps, animated GIFs/videos, and 3D text into Minecraft builds, generating modular builds with 3D Wave Function Collapse, and exporting builds back out to `.obj` + `.mtl` for Blender.
