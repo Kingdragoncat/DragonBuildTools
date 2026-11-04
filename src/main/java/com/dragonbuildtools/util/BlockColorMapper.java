@@ -95,6 +95,58 @@ public final class BlockColorMapper {
     }
 
     /**
+     * Estimates an RGB color [r, g, b] (0..255) for any BlockType for .obj/.mtl exporting.
+     */
+    public static int[] estimateBlockRgb(BlockType bt) {
+        if (bt == null) {
+            return new int[]{140, 140, 140};
+        }
+        String id = bt.id();
+        for (PaletteEntry pe : getSolidPalette()) {
+            if (pe.id.equals(id)) {
+                return new int[]{pe.r, pe.g, pe.b};
+            }
+        }
+        for (PaletteEntry pe : getGlassPalette()) {
+            if (pe.id.equals(id)) {
+                return new int[]{pe.r, pe.g, pe.b};
+            }
+        }
+        for (SubBlockFamily fam : getSubBlockFamilies()) {
+            if ((fam.fullBlock != null && fam.fullBlock.id().equals(id))
+                    || (fam.stairs != null && fam.stairs.id().equals(id))
+                    || (fam.slab != null && fam.slab.id().equals(id))
+                    || (fam.wall != null && fam.wall.id().equals(id))
+                    || (fam.fence != null && fam.fence.id().equals(id))
+                    || (fam.fenceGate != null && fam.fenceGate.id().equals(id))
+                    || (fam.trapdoor != null && fam.trapdoor.id().equals(id))
+                    || (fam.carpet != null && fam.carpet.id().equals(id))) {
+                return new int[]{fam.r, fam.g, fam.b};
+            }
+        }
+        if (id.contains("snow") || id.contains("quartz") || id.contains("white")) {
+            return new int[]{240, 244, 246};
+        }
+        if (id.contains("water")) {
+            return new int[]{52, 110, 214};
+        }
+        if (id.contains("grass") || id.contains("leaves") || id.contains("moss")) {
+            return new int[]{96, 152, 68};
+        }
+        TextureUtil tu = getFaweTextureUtil();
+        if (tu != null) {
+            try {
+                int c = tu.getColor(bt);
+                if (((c >>> 24) & 0xFF) > 0) {
+                    return new int[]{(c >>> 16) & 0xFF, (c >>> 8) & 0xFF, c & 0xFF};
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return new int[]{150, 150, 150};
+    }
+
+    /**
      * Computes perceptual redmean color distance squared between two RGB colors.
      */
     public static double colorDistanceSq(int r1, int g1, int b1, int r2, int g2, int b2) {

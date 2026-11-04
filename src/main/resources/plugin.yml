@@ -7,8 +7,8 @@ authors: [Kingdragoncat, Dustbeam]
 description: Building, 3D importing, animation, and procedural generation tools for FastAsyncWorldEdit.
 commands:
   dbt:
-    description: Dragon Build Tools command and help guide
-    usage: /dbt [help|pixelart|model|animmodel|video|heightmap|text3d|newwfc|anim|files]
+    description: Dragon Build Tools Studio GUI, instant demos, and command guide
+    usage: /dbt [gui|demo|help|pixelart|model|animmodel|video|heightmap|text3d|exportobj|newwfc|anim|files]
     aliases: [dragonbuildtools, dbtools]
 permissions:
   dragonbuildtools.use:

@@ -156,6 +156,8 @@ class DragonBuildToolsTest {
                 .build());
         assertTrue(cm.containsCommand("video"));
         assertTrue(cm.containsCommand("newwfc"));
+        assertTrue(cm.containsCommand("exportobj"));
+        assertTrue(cm.containsCommand("schemtoobj"));
 
         // Verify that invoking a command action calls listenersBeforeCall (which FAWE's ProvideBindings.editSession requires)
         try {
@@ -221,5 +223,30 @@ class DragonBuildToolsTest {
         VoxelGrid textGrid = Text3DGenerator.generate3DText("DBT", 12, 3, true, true, null);
         assertNotNull(textGrid);
         assertTrue(textGrid.sizeX > 0 && textGrid.sizeY > 0 && textGrid.sizeZ == 3);
+    }
+
+    @Test
+    void testStarterDemoAssetsGeneration(@TempDir File tempDir) throws Exception {
+        com.dragonbuildtools.demo.DemoAssetGenerator.writeDragonModel(tempDir);
+        com.dragonbuildtools.demo.DemoAssetGenerator.writeCrystalKnotModel(tempDir);
+        File gifFile = new File(tempDir, "synthwave_sunset.gif");
+        com.dragonbuildtools.demo.DemoAssetGenerator.writeSynthwaveGif(gifFile);
+        File hmapFile = new File(tempDir, "alpine_island.png");
+        com.dragonbuildtools.demo.DemoAssetGenerator.writeAlpineHeightmap(hmapFile);
+        File crestFile = new File(tempDir, "dragon_crest.png");
+        com.dragonbuildtools.demo.DemoAssetGenerator.writeDragonCrestImage(crestFile);
+
+        Mesh3D dragonMesh = Model3DVoxelizer.loadModel(new File(tempDir, "dragon_statue.obj").getAbsolutePath());
+        assertTrue(dragonMesh.triangles.size() > 50, "Dragon starter mesh must have triangles");
+
+        Mesh3D knotMesh = Model3DVoxelizer.loadModel(new File(tempDir, "crystal_knot.obj").getAbsolutePath());
+        assertTrue(knotMesh.triangles.size() > 100, "Crystal knot starter mesh must have triangles");
+
+        List<BufferedImage> gifFrames = VideoAndGifEngine.decodeAnimatedGifBytes(
+                java.nio.file.Files.readAllBytes(gifFile.toPath())
+        );
+        assertEquals(20, gifFrames.size(), "Synthwave starter GIF must contain 20 animated frames");
+        assertTrue(hmapFile.length() > 100);
+        assertTrue(crestFile.length() > 100);
     }
 }

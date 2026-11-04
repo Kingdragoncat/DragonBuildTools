@@ -1,39 +1,62 @@
 <p align="center">
-  <img src="assets/logo.png" width="180" alt="Dragon Build Tools">
+  <img src="assets/logo.png" width="170" alt="Dragon Build Tools">
 </p>
 
-<h1 align="center">Dragon Build Tools</h1>
+<h1 align="center">Dragon Build Tools v2.0</h1>
 
 <p align="center">
-  Extra building, 3D importing, animation, and procedural generation tools for <b>FastAsyncWorldEdit</b>.
+  3D model importing, live animations, video screens, 3D WFC, terrain heightmaps, and <code>.obj</code> exporting for <b>FastAsyncWorldEdit</b>.
+</p>
+
+<p align="center">
+  <img src="assets/showcase/hero_animmodel.gif" width="48%" alt="Live 3D Animated Dragon">
+  <img src="assets/showcase/subblocks_comparison.gif" width="48%" alt="Sub-Blocks vs Full Cubes">
+</p>
+<p align="center">
+  <img src="assets/showcase/curved_video_screen.gif" width="48%" alt="Curved Video Screen">
+  <img src="assets/showcase/wfc_and_terrain.gif" width="48%" alt="3D Wave Function Collapse">
 </p>
 
 ---
 
-Dragon Build Tools (DBT) is a Paper/Spigot addon for FastAsyncWorldEdit that adds commands for importing 3D models, images, heightmaps, videos/GIFs, 3D text, and running 3D Wave Function Collapse builds directly in-game.
+Dragon Build Tools (DBT) is a Paper/Spigot addon for FastAsyncWorldEdit that adds in-game tools for converting 3D meshes, images, heightmaps, animated GIFs/videos, and 3D text into Minecraft builds, generating modular builds with 3D Wave Function Collapse, and exporting builds back out to `.obj` + `.mtl` for Blender.
 
-When converting 3D meshes, terrain, or text, DBT doesn't just place full cubes. It checks surface angles and sub-voxel occupancy to place directional stairs, top/bottom slabs, walls, fences, carpets, and snow layers (1-7) where they fit, while avoiding ugly stacked stairs or off-hue blocks on neutral stone/white builds. All static generation commands run through FAWE edit sessions so `//undo` and `//redo` work normally.
+Instead of only placing full cubes, DBT checks surface slopes and sub-voxel occupancy to place directional stairs, top/bottom slabs, walls, fences, carpets, and snow layers (1-7) where they fit, while avoiding ugly stacked stairs or mismatched wood/terracotta hues on neutral stone and white builds. Static generators run through normal FAWE edit sessions (`//undo` and `//redo`) or copy straight to your `//paste` clipboard with `-o`.
+
+## What's New in v2.0
+
+- **In-Game Studio GUI (`/dbt` or `/dbt gui`):** Browse local folders, click to spawn or copy builds to your clipboard, test starter demos, and pause/speed-adjust/stop active animations from a chest menu.
+- **Built-In Starter Demos (`/dbt demo`):** Ships with starter 3D models (`dragon_statue.obj`, `crystal_knot.obj`), an animated GIF (`synthwave_sunset.gif`), a heightmap (`alpine_island.png`), and pixel art so you can test everything right after installing without hunting for files first.
+- **Minecraft to Blender Exporter (`//exportobj`):** Export any WorldEdit selection (or your clipboard with `-c`) into a face-culled `.obj` + `.mtl` 3D mesh with stair, slab, and snow-layer geometry.
+- **Direct Clipboard Mode (`-o`):** Generate `//model`, `//pixelart`, `//heightmap`, or `//text3d` directly onto your WorldEdit clipboard instead of placing immediately in the world.
 
 ## Requirements
 
 - **Server:** Paper, Purpur, or Spigot (`1.20.4` - `1.21.x`, `26.1` - `26.3`)
 - **Java:** 21+
 - **Dependency:** [FastAsyncWorldEdit (FAWE)](https://intellectualsites.github.io/download/fawe.html)
-- *(Optional)* `ffmpeg` installed on the host machine if you want to load `.mp4` / `.webm` / `.mov` files with `//video` (animated `.gif` files work out of the box with no extra dependencies).
+- *(Optional)* `ffmpeg` on the host machine if you want to load `.mp4` / `.webm` / `.mov` files with `//video`. Animated `.gif` files work out of the box with no extra dependencies.
 
 ## Installation
 
-1. Put `DragonBuildTools-1.0.0.jar` into your server's `plugins/` folder alongside FastAsyncWorldEdit.
+1. Put `DragonBuildTools-2.0.0.jar` into your server's `plugins/` folder alongside FastAsyncWorldEdit.
 2. Start or restart the server.
-3. Drop any local files you want to use into `plugins/DragonBuildTools/` (`images/`, `models/`, `videos/`, `animations/`, or `heightmaps/`), or pass direct `http://` / `https://` URLs in commands.
-
-Run `/dbt help` (or `/dbt help <command>`) in-game for usage details.
+3. Run `/dbt` in-game to open the Studio GUI and click any starter demo, or drop your own files into `plugins/DragonBuildTools/` (`models/`, `images/`, `videos/`, `animations/`, `heightmaps/`) or pass `http://` / `https://` URLs directly in commands.
 
 ## Commands
 
+### Studio GUI & Starter Demos (`/dbt`)
+```text
+/dbt
+/dbt demo <dragon|cinema|knot|terrain|text|setup>
+/dbt help [topic]
+/dbt files
+```
+Running `/dbt` as a player opens the chest GUI where you can launch starter demos, click files from your folders (Left-Click to place, Right-Click to copy to `//paste`), or control running animations.
+
 ### 3D Models (`//model`)
 ```text
-//model <file|url> [size=48] [block] [rx=0] [ry=0] [rz=0] [-s] [-d] [-g] [-l] [-b] [-c]
+//model <file|url> [size=48] [block] [rx=0] [ry=0] [rz=0] [-s] [-d] [-g] [-l] [-b] [-c] [-o]
 ```
 Aliases: `//3dmodel`, `//voxel`, `//dbtmodel`
 
@@ -44,6 +67,17 @@ Imports `.obj` (including `.mtl` materials and textures), `.glb`, `.gltf`, `.stl
 - `-d` disable color dithering
 - `-g` disable stained glass for translucent surfaces
 - `-c` center on your position
+- `-o` copy to your `//paste` clipboard instead of placing
+
+### Export Selection to `.OBJ` (`//exportobj`)
+```text
+//exportobj <name> [-c] [-m]
+```
+Aliases: `//schemtoobj`, `//toobj`
+
+Exports your WorldEdit selection to `plugins/DragonBuildTools/exports/<name>.obj` (+ `.mtl`) with hidden-face culling and sub-block geometry for stairs, slabs, and snow layers.
+- `-c` export from your `//copy` clipboard instead of your selection
+- `-m` also copy the exported `.obj` + `.mtl` into `models/` so you can re-import or animate it with `//animmodel`
 
 ### Animated 3D Models (`//animmodel`)
 ```text
@@ -51,7 +85,7 @@ Imports `.obj` (including `.mtl` materials and textures), `.glb`, `.gltf`, `.stl
 ```
 Aliases: `//3danim`, `//animate3d`
 
-Animates a 3D model in the world by pre-voxelizing frames and only swapping the blocks that change between frames. Supports multi-frame `.vox` files, numbered mesh folders in `plugins/DragonBuildTools/animations/`, or procedural motion modes (`wingflap`, `spin`, `hover`, `breathe`, `swing`) on a static model.
+Animates a 3D model in the world by pre-voxelizing frames and only swapping blocks that change between frames. Supports multi-frame `.vox` files, numbered mesh folders in `plugins/DragonBuildTools/animations/`, or procedural motion modes (`wingflap`, `spin`, `hover`, `breathe`, `swing`) on a static model.
 - `-n` play once without looping
 
 ### Video & GIF Screens (`//video`)
@@ -64,18 +98,7 @@ Creates named in-world screens from `.gif` files, image folders, or video files 
 - `-f` flat on the floor
 - `-u` curved screen
 - `-a` start playing right away
-- Other controls:
-  - `//video start <name|all>`
-  - `//video pause <name|all>`
-  - `//video stop <name|all> [-r]` (`-r` hides the screen and restores the original blocks behind it)
-  - `//video restart <name|all>`
-  - `//video seek <name> <frame>`
-  - `//video fps <name|all> <fps>`
-  - `//video loop <name> [on|off]`
-  - `//video move <name> [-c]`
-  - `//video clone <src_name> <new_name>`
-  - `//video remove <name|all> [-k]` (`-k` leaves the current frame placed as blocks)
-  - `//video list` / `//video info <name>`
+- Subcommands: `start`, `pause`, `stop [-r]`, `restart`, `seek`, `fps`, `loop`, `move`, `clone`, `remove [-k]`, `info`, `list`
 
 ### Animation Control (`//anim`)
 ```text
@@ -97,33 +120,31 @@ Generates 3D builds from variation cells in a grid (or from your clipboard). Bot
 
 ### 2D Pixel Art (`//pixelart`)
 ```text
-//pixelart <file|url> [width=64] [height=0] [-f] [-d] [-g] [-c]
+//pixelart <file|url> [width=64] [height=0] [-f] [-d] [-g] [-c] [-o]
 ```
 Aliases: `//dbtimage`, `//dbtimg`
 
-Converts `PNG`, `JPG`, `GIF`, `WEBP`, `SVG`/`SVGZ`, `BMP`, `TGA`, `ICO`, `PPM`, and `TIFF` images from `plugins/DragonBuildTools/images/` or a URL into upright wall art or flat floor builds (`-f`).
+Converts `PNG`, `JPG`, `GIF`, `WEBP`, `SVG`/`SVGZ`, `BMP`, `TGA`, `ICO`, `PPM`, and `TIFF` images from `plugins/DragonBuildTools/images/` or a URL into upright wall art, flat floor builds (`-f`), or clipboard (`-o`).
 
 ### Heightmaps to Terrain (`//heightmap`)
 ```text
-//heightmap <file|url> [size=80] [maxHeight=40] [colormap|none] [block] [-w] [-h] [-b] [-c]
+//heightmap <file|url> [size=80] [maxHeight=40] [colormap|none] [block] [-w] [-h] [-b] [-c] [-o]
 ```
 Aliases: `//terrain`, `//dem`
 
-Generates 3D terrain from a grayscale heightmap in `plugins/DragonBuildTools/heightmaps/` (or URL), using either automatic elevation layers or an optional colormap image.
-- `-w` fill low basins with water
-- `-h` hollow shell
+Generates 3D terrain from a grayscale heightmap in `plugins/DragonBuildTools/heightmaps/` (or URL), using automatic elevation layers or an optional colormap image.
 
 ### 3D Text (`//text3d`)
 ```text
-//text3d <height> <depth> <block> <text> [-v] [-b] [-c]
+//text3d <height> <depth> <block> <text> [-v] [-b] [-c] [-o]
 ```
 Aliases: `//3dtext`
 
-Extrudes 3D text using `<block>` (can be any WorldEdit pattern). Use `_` for spaces and `-v` for beveled edges.
+Extrudes 3D text using `<block>` (can be any WorldEdit pattern). Use `_` for spaces, `-v` for beveled edges, and `-o` to copy to clipboard.
 
 ## Permissions
 
-- `dragonbuildtools.use` - Access to DBT building commands (default: `op`)
+- `dragonbuildtools.use` - Access to DBT commands and GUI (default: `op`)
 - `dragonbuildtools.admin` - Manage active server animations (default: `op`)
 
 ## Building
@@ -132,7 +153,7 @@ Extrudes 3D text using `<block>` (can be any WorldEdit pattern). Use `_` for spa
 ./gradlew build
 ```
 
-The compiled JAR is written to `build/libs/DragonBuildTools-1.0.0.jar`.
+The compiled JAR is written to `build/libs/DragonBuildTools-2.0.0.jar`.
 
 ---
 *Logo by Dustbeam.*

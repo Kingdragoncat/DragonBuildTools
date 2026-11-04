@@ -9,6 +9,9 @@ import com.dragonbuildtools.command.DbtWorldEditCommandsRegistration;
 import com.dragonbuildtools.converter.HeightmapTerrainGenerator;
 import com.dragonbuildtools.converter.ImagePixelArtConverter;
 import com.dragonbuildtools.converter.Model3DVoxelizer;
+import com.dragonbuildtools.converter.ObjSelectionExporter;
+import com.dragonbuildtools.demo.DemoAssetGenerator;
+import com.dragonbuildtools.gui.DbtGuiManager;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.bukkit.WorldEditPlugin;
 import com.sk89q.worldedit.extension.platform.Capability;
@@ -27,6 +30,7 @@ public class DragonBuildToolsPlugin extends JavaPlugin {
 
     private static DragonBuildToolsPlugin instance;
     private AnimationManager animationManager;
+    private DbtGuiManager guiManager;
 
     public static DragonBuildToolsPlugin getInstance() {
         return instance;
@@ -34,6 +38,10 @@ public class DragonBuildToolsPlugin extends JavaPlugin {
 
     public AnimationManager getAnimationManager() {
         return animationManager;
+    }
+
+    public DbtGuiManager getGuiManager() {
+        return guiManager;
     }
 
     @Override
@@ -49,9 +57,15 @@ public class DragonBuildToolsPlugin extends JavaPlugin {
         AnimatedModelEngine.getAnimationsDirectory();
         VideoAndGifEngine.getVideosDirectory();
         HeightmapTerrainGenerator.getHeightmapsDirectory();
+        ObjSelectionExporter.getExportsDirectory();
 
-        // Initialize live animation manager
+        // Seed built-in starter demo assets asynchronously so first-time users can test immediately
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> DemoAssetGenerator.ensureStarterAssets(false));
+
+        // Initialize live animation manager & interactive Studio GUI
         this.animationManager = new AnimationManager(this);
+        this.guiManager = new DbtGuiManager(this);
+        Bukkit.getPluginManager().registerEvents(this.guiManager, this);
 
         // Register /dbt Bukkit command
         PluginCommand dbtCmd = getCommand("dbt");
@@ -65,7 +79,7 @@ public class DragonBuildToolsPlugin extends JavaPlugin {
         registerWorldEditCommands();
 
         getLogger().info("Dragon Build Tools (DBT) v" + getDescription().getVersion()
-                + " enabled! Use /dbt help or //pixelart, //model, //animmodel, //video, //heightmap, //text3d.");
+                + " enabled! Run /dbt for the interactive GUI or /dbt help.");
     }
 
     @Override

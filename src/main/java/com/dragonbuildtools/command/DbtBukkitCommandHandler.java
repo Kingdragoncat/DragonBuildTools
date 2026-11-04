@@ -8,6 +8,8 @@ import com.dragonbuildtools.animation.VideoAndGifEngine;
 import com.dragonbuildtools.converter.HeightmapTerrainGenerator;
 import com.dragonbuildtools.converter.ImagePixelArtConverter;
 import com.dragonbuildtools.converter.Model3DVoxelizer;
+import com.dragonbuildtools.converter.ObjSelectionExporter;
+import com.dragonbuildtools.demo.DemoAssetGenerator;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -20,14 +22,18 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.Player;
 
 /**
- * Handles the {@code /dbt} ({@code /dragonbuildtools}, {@code /dbtools}) command and in-game documentation.
+ * Handles the {@code /dbt} ({@code /dragonbuildtools}, {@code /dbtools}) command, Studio GUI, demos, and help.
  */
 public class DbtBukkitCommandHandler implements CommandExecutor, TabCompleter {
 
     private static final List<String> TOPICS = Arrays.asList(
-            "help", "pixelart", "model", "animmodel", "video", "anim", "heightmap", "text3d", "newwfc", "files"
+            "gui", "demo", "help", "pixelart", "model", "animmodel", "video", "anim", "heightmap", "text3d", "exportobj", "newwfc", "files"
+    );
+    private static final List<String> DEMO_NAMES = Arrays.asList(
+            "dragon", "cinema", "knot", "terrain", "text", "setup"
     );
 
     private final DragonBuildToolsPlugin plugin;
@@ -43,7 +49,16 @@ public class DbtBukkitCommandHandler implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (args.length == 0 || args[0].equalsIgnoreCase("help") || args[0].equalsIgnoreCase("?")) {
+        if (args.length == 0) {
+            if (sender instanceof Player player && plugin.getGuiManager() != null) {
+                plugin.getGuiManager().openHome(player);
+            } else {
+                sendHelpTopic(sender, "overview");
+            }
+            return true;
+        }
+
+        if (args[0].equalsIgnoreCase("help") || args[0].equalsIgnoreCase("?")) {
             String topic = args.length >= 2 ? args[1].toLowerCase(Locale.ROOT) : "overview";
             sendHelpTopic(sender, topic);
             return true;
@@ -51,6 +66,18 @@ public class DbtBukkitCommandHandler implements CommandExecutor, TabCompleter {
 
         String sub = args[0].toLowerCase(Locale.ROOT);
         switch (sub) {
+            case "gui":
+            case "menu":
+            case "studio":
+                if (sender instanceof Player player && plugin.getGuiManager() != null) {
+                    plugin.getGuiManager().openHome(player);
+                } else {
+                    sender.sendMessage(ChatColor.RED + "Only in-game players can open the GUI.");
+                }
+                return true;
+            case "demo":
+                handleDemoSubcommand(sender, args.length >= 2 ? args[1] : "list");
+                return true;
             case "pixelart":
             case "image":
             case "img":
@@ -190,24 +217,71 @@ public class DbtBukkitCommandHandler implements CommandExecutor, TabCompleter {
             case "text3d":
             case "3dtext": {
                 sender.sendMessage(ChatColor.DARK_AQUA + "=== " + ChatColor.GOLD + "DBT: 3D Extruded Text" + ChatColor.DARK_AQUA + " ===");
-                sender.sendMessage(ChatColor.AQUA + "//text3d <height> <depth> <block> <text> [-v] [-b] [-c]");
+                sender.sendMessage(ChatColor.AQUA + "//text3d <height> <depth> <block> <text> [-v] [-b] [-c] [-o]");
                 sender.sendMessage(ChatColor.GRAY + "Aliases: " + ChatColor.WHITE + "//3dtext, /text3d");
                 sender.sendMessage(ChatColor.GRAY + "Example: " + ChatColor.WHITE + "//text3d 24 5 gold_block DRAGON_BUILD_TOOLS -v");
                 return;
             }
-            default: {
-                sender.sendMessage(ChatColor.DARK_AQUA + "=== " + ChatColor.GOLD + "Dragon Build Tools (DBT) v1.0.0" + ChatColor.DARK_AQUA + " ===");
-                sender.sendMessage(ChatColor.YELLOW + "Commands " + ChatColor.GRAY + "(run " + ChatColor.WHITE + "/dbt help <topic>" + ChatColor.GRAY + " for detailed flags):");
-                sender.sendMessage(ChatColor.AQUA + "  //pixelart <src> [w] [h]          " + ChatColor.GRAY + "- 2D Image to Minecraft Pixel Art");
-                sender.sendMessage(ChatColor.AQUA + "  //model <src> [size] [block]      " + ChatColor.GRAY + "- 3D Model to Build (with sub-blocks)");
-                sender.sendMessage(ChatColor.AQUA + "  //animmodel <src> [size] [mode]   " + ChatColor.GRAY + "- Animated 3D Model (wingflap/spin/hover/etc.)");
-                sender.sendMessage(ChatColor.AQUA + "  //video create <name> <file>      " + ChatColor.GRAY + "- Named Video / GIF Screen (start/pause/stop/etc.)");
-                sender.sendMessage(ChatColor.AQUA + "  //newwfc <grid> [wfc] [vars]      " + ChatColor.GRAY + "- 3D WFC Generator (-n, -c, -b, -j, -l, -g)");
-                sender.sendMessage(ChatColor.AQUA + "  //anim <list|pause|resume|stop>   " + ChatColor.GRAY + "- Control active 3D & video animations");
-                sender.sendMessage(ChatColor.AQUA + "  //heightmap <src> [size] [maxY]   " + ChatColor.GRAY + "- Heightmap / DEM to 3D Terrain Build");
-                sender.sendMessage(ChatColor.AQUA + "  //text3d <h> <depth> [blk] <text> " + ChatColor.GRAY + "- 3D Extruded Text & Logos");
-                sender.sendMessage(ChatColor.AQUA + "  /dbt files                        " + ChatColor.GRAY + "- List files in plugins/DragonBuildTools/");
+            case "exportobj":
+            case "schemtoobj":
+            case "toobj": {
+                sender.sendMessage(ChatColor.DARK_AQUA + "=== " + ChatColor.GOLD + "DBT: Export Selection to .OBJ + .MTL" + ChatColor.DARK_AQUA + " ===");
+                sender.sendMessage(ChatColor.AQUA + "//exportobj <name> [-c] [-m]");
+                sender.sendMessage(ChatColor.GRAY + "Aliases: " + ChatColor.WHITE + "//schemtoobj, //toobj, /exportobj");
+                sender.sendMessage(ChatColor.GRAY + "Output:  " + ChatColor.WHITE + "plugins/DragonBuildTools/exports/<name>.obj (+ .mtl)");
+                sender.sendMessage(ChatColor.WHITE + "  -c  " + ChatColor.GRAY + "Export from your //copy clipboard instead of your selection");
+                sender.sendMessage(ChatColor.WHITE + "  -m  " + ChatColor.GRAY + "Also copy into models/ so you can re-import or //animmodel it");
+                return;
             }
+            default: {
+                sender.sendMessage(ChatColor.DARK_AQUA + "=== " + ChatColor.GOLD + "Dragon Build Tools (DBT) v2.0.0" + ChatColor.DARK_AQUA + " ===");
+                sender.sendMessage(ChatColor.YELLOW + "Commands " + ChatColor.GRAY + "(run " + ChatColor.WHITE + "/dbt" + ChatColor.GRAY + " for GUI or " + ChatColor.WHITE + "/dbt help <topic>" + ChatColor.GRAY + "):");
+                sender.sendMessage(ChatColor.AQUA + "  /dbt                              " + ChatColor.GRAY + "- Open interactive Chest Studio GUI");
+                sender.sendMessage(ChatColor.AQUA + "  /dbt demo <dragon|cinema|knot...> " + ChatColor.GRAY + "- Spawn built-in starter demos right away");
+                sender.sendMessage(ChatColor.AQUA + "  //model <src> [size] [block]      " + ChatColor.GRAY + "- 3D Model to Build (-s, -l, -b, -c, -o)");
+                sender.sendMessage(ChatColor.AQUA + "  //animmodel <src> [size] [mode]   " + ChatColor.GRAY + "- Animated 3D Model (wingflap/spin/hover/etc.)");
+                sender.sendMessage(ChatColor.AQUA + "  //video create <name> <file>      " + ChatColor.GRAY + "- Named Video / GIF Screen (-f, -u, -a, -r)");
+                sender.sendMessage(ChatColor.AQUA + "  //newwfc <grid> [wfc] [vars]      " + ChatColor.GRAY + "- 3D WFC Generator (-n, -c, -b, -j, -l, -g)");
+                sender.sendMessage(ChatColor.AQUA + "  //exportobj <name> [-c] [-m]      " + ChatColor.GRAY + "- Export selection/clipboard to .obj + .mtl");
+                sender.sendMessage(ChatColor.AQUA + "  //pixelart <src> [w] [h]          " + ChatColor.GRAY + "- 2D Image to Pixel Art (-f, -o)");
+                sender.sendMessage(ChatColor.AQUA + "  //heightmap <src> [size] [maxY]   " + ChatColor.GRAY + "- Heightmap / DEM to 3D Terrain (-w, -o)");
+                sender.sendMessage(ChatColor.AQUA + "  //text3d <h> <depth> <blk> <text> " + ChatColor.GRAY + "- 3D Extruded Text (-v, -o)");
+            }
+        }
+    }
+
+    private void handleDemoSubcommand(CommandSender sender, String preset) {
+        String p = preset == null ? "list" : preset.toLowerCase(Locale.ROOT);
+        if ("setup".equals(p)) {
+            int created = DemoAssetGenerator.ensureStarterAssets(true);
+            sender.sendMessage(ChatColor.GREEN + "[DBT] Generated " + created + " starter demo files in plugins/DragonBuildTools/!");
+            return;
+        }
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(ChatColor.YELLOW + "Run /dbt demo setup from console, or run /dbt demo <dragon|cinema|knot|terrain|text> in-game.");
+            return;
+        }
+        DemoAssetGenerator.ensureStarterAssets(false);
+        switch (p) {
+            case "dragon":
+                player.performCommand("/animmodel " + DemoAssetGenerator.DEMO_DRAGON_MODEL + " 48 wingflap 16 8");
+                break;
+            case "cinema":
+                player.performCommand("/video create demo_" + (System.currentTimeMillis() % 1000) + " "
+                        + DemoAssetGenerator.DEMO_SYNTHWAVE_GIF + " 64 36 10 24 -u -a");
+                break;
+            case "knot":
+                player.performCommand("/model " + DemoAssetGenerator.DEMO_KNOT_MODEL + " 42");
+                break;
+            case "terrain":
+                player.performCommand("/heightmap " + DemoAssetGenerator.DEMO_ALPINE_HEIGHTMAP + " 80 36 none -w");
+                break;
+            case "text":
+                player.performCommand("/text3d 14 4 gold_block DRAGON -v");
+                break;
+            default:
+                sender.sendMessage(ChatColor.GOLD + "DBT Built-in Demos: " + ChatColor.AQUA + "/dbt demo <dragon|cinema|knot|terrain|text|setup>");
+                break;
         }
     }
 
@@ -257,6 +331,7 @@ public class DbtBukkitCommandHandler implements CommandExecutor, TabCompleter {
         sendDirFiles(sender, "animations", AnimatedModelEngine.getAnimationsDirectory());
         sendDirFiles(sender, "videos", VideoAndGifEngine.getVideosDirectory());
         sendDirFiles(sender, "heightmaps", HeightmapTerrainGenerator.getHeightmapsDirectory());
+        sendDirFiles(sender, "exports", ObjSelectionExporter.getExportsDirectory());
     }
 
     private static void sendDirFiles(CommandSender sender, String label, File dir) {
@@ -284,6 +359,16 @@ public class DbtBukkitCommandHandler implements CommandExecutor, TabCompleter {
             for (String t : TOPICS) {
                 if (t.startsWith(prefix)) {
                     matches.add(t);
+                }
+            }
+            return matches;
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("demo")) {
+            String prefix = args[1].toLowerCase(Locale.ROOT);
+            List<String> matches = new ArrayList<>();
+            for (String d : DEMO_NAMES) {
+                if (d.startsWith(prefix)) {
+                    matches.add(d);
                 }
             }
             return matches;

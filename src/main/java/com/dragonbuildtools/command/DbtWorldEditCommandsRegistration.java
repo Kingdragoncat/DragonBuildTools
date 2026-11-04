@@ -39,13 +39,13 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
 
     private static final Class<?>[] PIXEL_ART_PARAM_TYPES = new Class<?>[]{
             Player.class, LocalSession.class, EditSession.class, String.class,
-            int.class, int.class, boolean.class, boolean.class, boolean.class, boolean.class
+            int.class, int.class, boolean.class, boolean.class, boolean.class, boolean.class, boolean.class
     };
 
     private static final Class<?>[] MODEL_PARAM_TYPES = new Class<?>[]{
             Player.class, LocalSession.class, EditSession.class, String.class,
             int.class, String.class, double.class, double.class, double.class,
-            boolean.class, boolean.class, boolean.class, boolean.class, boolean.class, boolean.class
+            boolean.class, boolean.class, boolean.class, boolean.class, boolean.class, boolean.class, boolean.class
     };
 
     private static final Class<?>[] ANIM_MODEL_PARAM_TYPES = new Class<?>[]{
@@ -69,13 +69,18 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
     private static final Class<?>[] HEIGHTMAP_PARAM_TYPES = new Class<?>[]{
             Player.class, LocalSession.class, EditSession.class, String.class,
             int.class, int.class, String.class, String.class,
-            boolean.class, boolean.class, boolean.class, boolean.class
+            boolean.class, boolean.class, boolean.class, boolean.class, boolean.class
     };
 
     private static final Class<?>[] TEXT3D_PARAM_TYPES = new Class<?>[]{
             Player.class, LocalSession.class, EditSession.class,
             int.class, int.class, String.class, String.class,
-            boolean.class, boolean.class, boolean.class
+            boolean.class, boolean.class, boolean.class, boolean.class
+    };
+
+    private static final Class<?>[] EXPORT_OBJ_PARAM_TYPES = new Class<?>[]{
+            Player.class, LocalSession.class, EditSession.class,
+            String.class, boolean.class, boolean.class
     };
 
     private static final Class<?>[] NEW_WFC_PARAM_TYPES = new Class<?>[]{
@@ -152,6 +157,9 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
     private final NoArgCommandFlag waterFlag = flag('w', "Fill basins with water at sea level");
     private final NoArgCommandFlag hollowFlag = flag('h', "Hollow terrain shell");
     private final NoArgCommandFlag bevelFlag = flag('v', "Bevel front and back edges");
+    private final NoArgCommandFlag toClipboardFlag = flag('o', "Copy generated build to your //paste clipboard instead of placing");
+    private final NoArgCommandFlag copyToModelsFlag = flag('m', "Also copy exported .obj + .mtl into plugins/DragonBuildTools/models/");
+    private final CommandArgument exportNameArg = arg("name", "Output .obj filename", "exported_build", STRING_KEY);
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static CommandArgument arg(String name, String desc, String def, Key<?> key) {
@@ -213,13 +221,13 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
     public void build() {
         registerCollisionSafe("dbtpixelart", ImmutableList.of("pixelart", "/pixelart", "dbtimage", "/dbtimage", "dbtimg", "/dbtimg"),
                 "Convert a 2D image or URL into Minecraft pixel art",
-                ImmutableList.of(flatFlag, noDitherFlag, noGlassFlag, centerFlag, sourceArg, widthArg, heightArg),
+                ImmutableList.of(flatFlag, noDitherFlag, noGlassFlag, centerFlag, toClipboardFlag, sourceArg, widthArg, heightArg),
                 this::invokePixelArt,
                 getMethod("pixelArtCommand", PIXEL_ART_PARAM_TYPES));
 
         registerCollisionSafe("dbtmodel", ImmutableList.of("model", "/model", "3dmodel", "/3dmodel", "voxel", "/voxel", "/dbtmodel"),
                 "Convert a 3D model (.obj, .stl, .ply, .glb, .gltf, .vox, .off) into a 3D Minecraft build with sub-blocks",
-                ImmutableList.of(solidFlag, noDitherFlag, noGlassFlag, shadeFlag, noSubFlag, centerFlag,
+                ImmutableList.of(solidFlag, noDitherFlag, noGlassFlag, shadeFlag, noSubFlag, centerFlag, toClipboardFlag,
                         sourceArg, size48Arg, patternOptArg, rxArg, ryArg, rzArg),
                 this::invokeModel,
                 getMethod("modelCommand", MODEL_PARAM_TYPES));
@@ -247,17 +255,23 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
 
         registerCollisionSafe("heightmap", ImmutableList.of("/heightmap", "terrain", "/terrain", "dem", "/dem"),
                 "Convert a heightmap / DEM image (+ optional colormap) into 3D Minecraft terrain",
-                ImmutableList.of(waterFlag, hollowFlag, noSubFlag, centerFlag,
+                ImmutableList.of(waterFlag, hollowFlag, noSubFlag, centerFlag, toClipboardFlag,
                         sourceArg, size80Arg, maxHeightArg, colormapArg, patternOptArg),
                 this::invokeHeightmap,
                 getMethod("heightmapCommand", HEIGHTMAP_PARAM_TYPES));
 
         registerCollisionSafe("text3d", ImmutableList.of("/text3d", "3dtext", "/3dtext"),
                 "Render 3D extruded text with sub-block stair/slab glyph smoothing",
-                ImmutableList.of(bevelFlag, noSubFlag, centerFlag,
+                ImmutableList.of(bevelFlag, noSubFlag, centerFlag, toClipboardFlag,
                         textHeightArg, textDepthArg, textBlockArg, textStringArg),
                 this::invokeText3D,
                 getMethod("text3DCommand", TEXT3D_PARAM_TYPES));
+
+        registerCollisionSafe("exportobj", ImmutableList.of("/exportobj", "schemtoobj", "/schemtoobj", "toobj", "/toobj"),
+                "Export your WorldEdit selection (or clipboard with -c) to a Wavefront .obj + .mtl 3D mesh",
+                ImmutableList.of(wfcClipboardFlag, copyToModelsFlag, exportNameArg),
+                this::invokeExportObj,
+                getMethod("exportObjCommand", EXPORT_OBJ_PARAM_TYPES));
 
         registerCollisionSafe("newwfc", ImmutableList.of("/newwfc", "dbtwfc", "/dbtwfc"),
                 "Generates a 3D Wave Function Collapse grid from variations (-n <mask>, -c, -b, -j, -l <int>, -g)",
@@ -337,7 +351,8 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
                     flatFlag.in(params),
                     noDitherFlag.in(params),
                     noGlassFlag.in(params),
-                    centerFlag.in(params)
+                    centerFlag.in(params),
+                    toClipboardFlag.in(params)
             );
             RegistrationUtil.listenersAfterCall(this.callListeners, method, params);
             return 1;
@@ -366,7 +381,8 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
                     noGlassFlag.in(params),
                     shadeFlag.in(params),
                     noSubFlag.in(params),
-                    centerFlag.in(params)
+                    centerFlag.in(params),
+                    toClipboardFlag.in(params)
             );
             RegistrationUtil.listenersAfterCall(this.callListeners, method, params);
             return 1;
@@ -469,7 +485,8 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
                     waterFlag.in(params),
                     hollowFlag.in(params),
                     noSubFlag.in(params),
-                    centerFlag.in(params)
+                    centerFlag.in(params),
+                    toClipboardFlag.in(params)
             );
             RegistrationUtil.listenersAfterCall(this.callListeners, method, params);
             return 1;
@@ -493,7 +510,28 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
                     (String) textStringArg.value(params).asSingle(STRING_KEY),
                     bevelFlag.in(params),
                     noSubFlag.in(params),
-                    centerFlag.in(params)
+                    centerFlag.in(params),
+                    toClipboardFlag.in(params)
+            );
+            RegistrationUtil.listenersAfterCall(this.callListeners, method, params);
+            return 1;
+        } catch (Throwable t) {
+            RegistrationUtil.listenersAfterThrow(this.callListeners, method, params, t);
+            throw t;
+        }
+    }
+
+    private int invokeExportObj(CommandParameters params) {
+        Method method = getMethod("exportObjCommand", EXPORT_OBJ_PARAM_TYPES);
+        RegistrationUtil.listenersBeforeCall(this.callListeners, method, params);
+        try {
+            container.exportObjCommand(
+                    extractPlayer(params),
+                    extractSession(params),
+                    extractEditSession(params),
+                    (String) exportNameArg.value(params).asSingle(STRING_KEY),
+                    wfcClipboardFlag.in(params),
+                    copyToModelsFlag.in(params)
             );
             RegistrationUtil.listenersAfterCall(this.callListeners, method, params);
             return 1;

@@ -11,6 +11,8 @@ import com.dragonbuildtools.converter.ImagePixelArtConverter;
 import com.dragonbuildtools.converter.Model3DVoxelizer;
 import com.dragonbuildtools.converter.Model3DVoxelizer.Mesh3D;
 import com.dragonbuildtools.converter.Model3DVoxelizer.VoxelGrid;
+import com.dragonbuildtools.converter.ObjSelectionExporter;
+import com.dragonbuildtools.converter.ObjSelectionExporter.ExportResult;
 import com.dragonbuildtools.converter.Text3DGenerator;
 import com.dragonbuildtools.util.CardinalDirectionUtil;
 import com.dragonbuildtools.wfc.Wfc3DGridGenerator;
@@ -27,6 +29,7 @@ import com.sk89q.worldedit.command.util.Logging;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.extent.Extent;
+import com.sk89q.worldedit.extent.clipboard.BlockArrayClipboard;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.function.mask.Mask;
 import com.sk89q.worldedit.function.pattern.Pattern;
@@ -37,6 +40,7 @@ import com.sk89q.worldedit.session.ClipboardHolder;
 import com.sk89q.worldedit.util.formatting.text.TextComponent;
 import com.sk89q.worldedit.util.formatting.text.format.TextColor;
 import com.sk89q.worldedit.world.block.BaseBlock;
+import com.sk89q.worldedit.world.block.BlockStateHolder;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.List;
@@ -62,10 +66,11 @@ public class DbtWorldEditCommands {
             boolean flat,
             boolean noDither,
             boolean noGlass,
-            boolean noCenter
+            boolean noCenter,
+            boolean toClipboard
     ) throws WorldEditException {
         if (source.equalsIgnoreCase("help") || source.equalsIgnoreCase("?")) {
-            player.print(TextComponent.of("Usage: //pixelart <file|url> [width=64] [height=0] [-f] [-d] [-g] [-c]", TextColor.AQUA));
+            player.print(TextComponent.of("Usage: //pixelart <file|url> [width=64] [height=0] [-f] [-d] [-g] [-c] [-o]", TextColor.AQUA));
             return;
         }
         int clampedW = Math.max(1, Math.min(512, width));
@@ -74,6 +79,14 @@ public class DbtWorldEditCommands {
             BufferedImage raw = ImagePixelArtConverter.loadImage(source);
             BufferedImage scaled = ImagePixelArtConverter.resizeImage(raw, clampedW, clampedH);
             BaseBlock[][] grid = ImagePixelArtConverter.imageToBlocks(scaled, !noDither, !noGlass);
+            if (toClipboard) {
+                int copied = copyPixelArtToClipboard(session, grid, flat);
+                player.print(TextComponent.of(
+                        "[DBT] Copied pixel art (" + scaled.getWidth() + "x" + scaled.getHeight() + ", " + copied + " blocks) to clipboard! Use //paste.",
+                        TextColor.LIGHT_PURPLE
+                ));
+                return;
+            }
             int placed = ImagePixelArtConverter.placePixelArt(editSession, player, grid, flat, !noCenter);
             player.print(TextComponent.of(
                     "[DBT] Built pixel art (" + scaled.getWidth() + "x" + scaled.getHeight() + ", " + placed + " blocks).",
@@ -101,10 +114,11 @@ public class DbtWorldEditCommands {
             boolean noGlass,
             boolean forceShade,
             boolean noSubBlocks,
-            boolean centerOnPlayer
+            boolean centerOnPlayer,
+            boolean toClipboard
     ) throws WorldEditException {
         if (source.equalsIgnoreCase("help") || source.equalsIgnoreCase("?")) {
-            player.print(TextComponent.of("Usage: //model <file|url> [size=48] [block] [rx] [ry] [rz] [-s] [-d] [-g] [-l] [-b] [-c]", TextColor.AQUA));
+            player.print(TextComponent.of("Usage: //model <file|url> [size=48] [block] [rx] [ry] [rz] [-s] [-d] [-g] [-l] [-b] [-c] [-o]", TextColor.AQUA));
             return;
         }
         int clampedSize = Math.max(2, Math.min(350, size));
@@ -117,6 +131,14 @@ public class DbtWorldEditCommands {
                     mesh, clampedSize, rx, ry, rz,
                     solid, !noDither, !noGlass, forceShade, !noSubBlocks, overridePattern
             );
+            if (toClipboard) {
+                int copied = copyVoxelGridToClipboard(session, grid);
+                player.print(TextComponent.of(
+                        "[DBT] Copied 3D model (" + grid.sizeX + "x" + grid.sizeY + "x" + grid.sizeZ + ", " + copied + " blocks) to clipboard! Use //paste.",
+                        TextColor.LIGHT_PURPLE
+                ));
+                return;
+            }
             int placed = Model3DVoxelizer.placeVoxelGrid(editSession, player, grid, centerOnPlayer, explicitOrigin);
             player.print(TextComponent.of(
                     "[DBT] Built 3D model (" + grid.sizeX + "x" + grid.sizeY + "x" + grid.sizeZ + ", " + placed + " blocks).",
@@ -725,10 +747,11 @@ public class DbtWorldEditCommands {
             boolean includeWater,
             boolean hollow,
             boolean noSubBlocks,
-            boolean centerOnPlayer
+            boolean centerOnPlayer,
+            boolean toClipboard
     ) throws WorldEditException {
         if (source.equalsIgnoreCase("help") || source.equalsIgnoreCase("?")) {
-            player.print(TextComponent.of("Usage: //heightmap <file|url> [size=80] [maxHeight=40] [colormap|none] [block] [-w] [-h] [-b] [-c]", TextColor.AQUA));
+            player.print(TextComponent.of("Usage: //heightmap <file|url> [size=80] [maxHeight=40] [colormap|none] [block] [-w] [-h] [-b] [-c] [-o]", TextColor.AQUA));
             return;
         }
         String cmap = (colormap == null || colormap.equalsIgnoreCase("none") || colormap.isEmpty()) ? null : colormap;
@@ -739,6 +762,15 @@ public class DbtWorldEditCommands {
             VoxelGrid terrain = HeightmapTerrainGenerator.generateTerrain(
                     source, cmap, size, maxHeight, !hollow, !noSubBlocks, includeWater, overridePattern
             );
+            if (toClipboard) {
+                int copied = copyVoxelGridToClipboard(session, terrain);
+                player.print(TextComponent.of(
+                        "[DBT] Copied 3D heightmap terrain (" + terrain.sizeX + "x" + terrain.sizeY + "x" + terrain.sizeZ
+                                + ", " + copied + " blocks) to clipboard! Use //paste.",
+                        TextColor.LIGHT_PURPLE
+                ));
+                return;
+            }
             int placed = Model3DVoxelizer.placeVoxelGrid(editSession, player, terrain, centerOnPlayer, explicitOrigin);
             player.print(TextComponent.of(
                     "[DBT] Generated 3D heightmap terrain (" + terrain.sizeX + "x" + terrain.sizeY + "x" + terrain.sizeZ
@@ -762,17 +794,73 @@ public class DbtWorldEditCommands {
             String text,
             boolean bevel,
             boolean noSubBlocks,
-            boolean centerOnPlayer
+            boolean centerOnPlayer,
+            boolean toClipboard
     ) throws WorldEditException {
         String display = text.replace('_', ' ');
         Pattern overridePattern = parseOptionalPattern(player, session, patternStr);
         VoxelGrid grid = Text3DGenerator.generate3DText(display, height, depth, bevel, !noSubBlocks, overridePattern);
+        if (toClipboard) {
+            int copied = copyVoxelGridToClipboard(session, grid);
+            player.print(TextComponent.of(
+                    "[DBT] Copied 3D Text '" + display + "' (" + grid.sizeX + "x" + grid.sizeY + "x" + grid.sizeZ
+                            + ", " + copied + " blocks) to clipboard! Use //paste.",
+                    TextColor.LIGHT_PURPLE
+            ));
+            return;
+        }
         int placed = Model3DVoxelizer.placeVoxelGrid(editSession, player, grid, centerOnPlayer, null);
         player.print(TextComponent.of(
                 "[DBT] Built 3D Text '" + display + "' (" + grid.sizeX + "x" + grid.sizeY + "x" + grid.sizeZ
                         + ", " + placed + " blocks).",
                 TextColor.LIGHT_PURPLE
         ));
+    }
+
+    @CommandPermissions({"dragonbuildtools.use"})
+    public void exportObjCommand(
+            Player player,
+            LocalSession session,
+            EditSession editSession,
+            String outputName,
+            boolean fromClipboard,
+            boolean copyToModels
+    ) {
+        if (outputName == null || outputName.equalsIgnoreCase("help") || outputName.equalsIgnoreCase("?")) {
+            player.print(TextComponent.of("Usage: //exportobj <name> [-c (from clipboard)] [-m (also save in models/)]", TextColor.AQUA));
+            return;
+        }
+        Extent extent = editSession;
+        Region region;
+        if (fromClipboard) {
+            try {
+                Clipboard clip = session.getClipboard().getClipboard();
+                extent = clip;
+                region = clip.getRegion();
+            } catch (EmptyClipboardException e) {
+                player.print(TextComponent.of("[DBT] Your clipboard is empty! Use //copy first or omit -c to export your selection.", TextColor.RED));
+                return;
+            }
+        } else {
+            try {
+                region = session.getSelection(player.getWorld());
+            } catch (IncompleteRegionException e) {
+                player.print(TextComponent.of("[DBT] Make a WorldEdit selection first (or pass -c to export your clipboard)!", TextColor.RED));
+                return;
+            }
+        }
+
+        try {
+            ExportResult res = ObjSelectionExporter.exportRegionToObj(extent, region, outputName, copyToModels);
+            player.print(TextComponent.of(
+                    "[DBT] Exported " + res.exportedBlocks + " blocks (" + res.exportedQuads + " faces, "
+                            + res.materialCount + " materials) -> plugins/DragonBuildTools/exports/" + res.objFile.getName()
+                            + (copyToModels ? " (+ copied to models/)" : ""),
+                    TextColor.LIGHT_PURPLE
+            ));
+        } catch (IOException e) {
+            player.print(TextComponent.of("[DBT] Failed to export .obj: " + e.getMessage(), TextColor.RED));
+        }
     }
 
     @CommandPermissions({"dragonbuildtools.use"})
@@ -909,6 +997,57 @@ public class DbtWorldEditCommands {
         } catch (Throwable ignored) {
             return null;
         }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static int copyVoxelGridToClipboard(LocalSession session, VoxelGrid grid) throws WorldEditException {
+        CuboidRegion reg = new CuboidRegion(
+                BlockVector3.ZERO,
+                BlockVector3.at(Math.max(0, grid.sizeX - 1), Math.max(0, grid.sizeY - 1), Math.max(0, grid.sizeZ - 1))
+        );
+        BlockArrayClipboard clipboard = new BlockArrayClipboard(reg);
+        clipboard.setOrigin(BlockVector3.at(grid.sizeX / 2, 0, grid.sizeZ / 2));
+        int count = 0;
+        for (int y = 0; y < grid.sizeY; y++) {
+            for (int z = 0; z < grid.sizeZ; z++) {
+                for (int x = 0; x < grid.sizeX; x++) {
+                    BaseBlock b = grid.blocks[x][y][z];
+                    if (b != null) {
+                        clipboard.setBlock(BlockVector3.at(x, y, z), (BlockStateHolder) b);
+                        count++;
+                    }
+                }
+            }
+        }
+        session.setClipboard(new ClipboardHolder(clipboard));
+        return count;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static int copyPixelArtToClipboard(LocalSession session, BaseBlock[][] grid, boolean flat) throws WorldEditException {
+        int w = grid.length;
+        int h = w > 0 ? grid[0].length : 0;
+        CuboidRegion reg = flat
+                ? new CuboidRegion(BlockVector3.ZERO, BlockVector3.at(Math.max(0, w - 1), 0, Math.max(0, h - 1)))
+                : new CuboidRegion(BlockVector3.ZERO, BlockVector3.at(Math.max(0, w - 1), Math.max(0, h - 1), 0));
+        BlockArrayClipboard clipboard = new BlockArrayClipboard(reg);
+        clipboard.setOrigin(flat ? BlockVector3.at(w / 2, 0, h / 2) : BlockVector3.at(w / 2, 0, 0));
+        int count = 0;
+        for (int x = 0; x < w; x++) {
+            for (int y = 0; y < h; y++) {
+                BaseBlock b = grid[x][y];
+                if (b == null) {
+                    continue;
+                }
+                BlockVector3 pt = flat
+                        ? BlockVector3.at(x, 0, y)
+                        : BlockVector3.at(x, (h - 1) - y, 0);
+                clipboard.setBlock(pt, (BlockStateHolder) b);
+                count++;
+            }
+        }
+        session.setClipboard(new ClipboardHolder(clipboard));
+        return count;
     }
 
     private static BlockVector3 getOptionalSelectionMin(Player player, LocalSession session) {
