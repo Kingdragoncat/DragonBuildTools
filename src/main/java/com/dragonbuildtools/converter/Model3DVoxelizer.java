@@ -77,6 +77,7 @@ public final class Model3DVoxelizer {
         public double alpha = 1.0;
         public BufferedImage texture;
         public boolean hasExplicitColor = false;
+        public boolean multiplyTextureByKd = false;
 
         public MaterialData(String name) {
             this.name = name;
@@ -1473,9 +1474,12 @@ public final class Model3DVoxelizer {
             int ty = Math.max(0, Math.min(tex.getHeight() - 1, (int) (v * tex.getHeight())));
             int texArgb = tex.getRGB(tx, ty);
             a *= ((texArgb >>> 24) & 0xFF) / 255.0;
-            r = (((texArgb >>> 16) & 0xFF) / 255.0) * (t.material.hasExplicitColor ? t.material.kdR : 1.0);
-            g = (((texArgb >>> 8) & 0xFF) / 255.0) * (t.material.hasExplicitColor ? t.material.kdG : 1.0);
-            b = ((texArgb & 0xFF) / 255.0) * (t.material.hasExplicitColor ? t.material.kdB : 1.0);
+            double mulR = (t.material.multiplyTextureByKd && t.material.hasExplicitColor) ? t.material.kdR : 1.0;
+            double mulG = (t.material.multiplyTextureByKd && t.material.hasExplicitColor) ? t.material.kdG : 1.0;
+            double mulB = (t.material.multiplyTextureByKd && t.material.hasExplicitColor) ? t.material.kdB : 1.0;
+            r = (((texArgb >>> 16) & 0xFF) / 255.0) * mulR;
+            g = (((texArgb >>> 8) & 0xFF) / 255.0) * mulG;
+            b = ((texArgb & 0xFF) / 255.0) * mulB;
         }
 
         int ri = clampByte(r * shadeMul * 255.0);
@@ -2120,6 +2124,7 @@ public final class Model3DVoxelizer {
                         mat.kdB = f.get(2).getAsDouble();
                         if (f.size() >= 4) mat.alpha = f.get(3).getAsDouble();
                         mat.hasExplicitColor = true;
+                        mat.multiplyTextureByKd = true;
                         mesh.hasAnyColorOrTexture = true;
                     }
                     if (pbr.has("baseColorTexture")) {

@@ -98,52 +98,7 @@ public final class BlockColorMapper {
      * Estimates an RGB color [r, g, b] (0..255) for any BlockType for .obj/.mtl exporting.
      */
     public static int[] estimateBlockRgb(BlockType bt) {
-        if (bt == null) {
-            return new int[]{140, 140, 140};
-        }
-        String id = bt.id();
-        for (PaletteEntry pe : getSolidPalette()) {
-            if (pe.id.equals(id)) {
-                return new int[]{pe.r, pe.g, pe.b};
-            }
-        }
-        for (PaletteEntry pe : getGlassPalette()) {
-            if (pe.id.equals(id)) {
-                return new int[]{pe.r, pe.g, pe.b};
-            }
-        }
-        for (SubBlockFamily fam : getSubBlockFamilies()) {
-            if ((fam.fullBlock != null && fam.fullBlock.id().equals(id))
-                    || (fam.stairs != null && fam.stairs.id().equals(id))
-                    || (fam.slab != null && fam.slab.id().equals(id))
-                    || (fam.wall != null && fam.wall.id().equals(id))
-                    || (fam.fence != null && fam.fence.id().equals(id))
-                    || (fam.fenceGate != null && fam.fenceGate.id().equals(id))
-                    || (fam.trapdoor != null && fam.trapdoor.id().equals(id))
-                    || (fam.carpet != null && fam.carpet.id().equals(id))) {
-                return new int[]{fam.r, fam.g, fam.b};
-            }
-        }
-        if (id.contains("snow") || id.contains("quartz") || id.contains("white")) {
-            return new int[]{240, 244, 246};
-        }
-        if (id.contains("water")) {
-            return new int[]{52, 110, 214};
-        }
-        if (id.contains("grass") || id.contains("leaves") || id.contains("moss")) {
-            return new int[]{96, 152, 68};
-        }
-        TextureUtil tu = getFaweTextureUtil();
-        if (tu != null) {
-            try {
-                int c = tu.getColor(bt);
-                if (((c >>> 24) & 0xFF) > 0) {
-                    return new int[]{(c >>> 16) & 0xFF, (c >>> 8) & 0xFF, c & 0xFF};
-                }
-            } catch (Throwable ignored) {
-            }
-        }
-        return new int[]{150, 150, 150};
+        return VanillaBlockAppearanceResolver.getAverageRgb(bt);
     }
 
     /**
@@ -669,8 +624,9 @@ public final class BlockColorMapper {
             return cachedTextureUtil;
         }
         try {
-            if (false && !java.util.Collections.<BlockType>emptySet().isEmpty()) {
-                cachedTextureUtil = TextureUtil.fromBlocks(java.util.Collections.<BlockType>emptySet());
+            com.fastasyncworldedit.core.Fawe fawe = com.fastasyncworldedit.core.Fawe.instance();
+            if (fawe != null) {
+                cachedTextureUtil = fawe.getTextureUtil();
             }
         } catch (Throwable ignored) {
         }
@@ -1074,6 +1030,23 @@ public final class BlockColorMapper {
         putEntry(map, "waxed_exposed_copper", 161, 125, 103);
         putEntry(map, "waxed_weathered_copper", 108, 153, 110);
         putEntry(map, "waxed_oxidized_copper", 82, 162, 132);
+        putEntry(map, "netherrack", 97, 38, 38);
+        putEntry(map, "stripped_mangrove_wood", 119, 54, 47);
+        putEntry(map, "crimson_hyphae", 93, 26, 30);
+        putEntry(map, "stripped_crimson_hyphae", 137, 57, 90);
+        putEntry(map, "warped_hyphae", 58, 58, 77);
+        putEntry(map, "stripped_warped_hyphae", 57, 150, 147);
+        putEntry(map, "stripped_oak_wood", 177, 144, 86);
+        putEntry(map, "stripped_spruce_wood", 115, 89, 52);
+        putEntry(map, "stripped_birch_wood", 196, 176, 118);
+        putEntry(map, "stripped_dark_oak_wood", 72, 56, 36);
+        putEntry(map, "stripped_cherry_wood", 215, 145, 148);
+        putEntry(map, "stripped_pale_oak_wood", 245, 238, 232);
+        putEntry(map, "honeycomb_block", 229, 148, 29);
+        putEntry(map, "shroomlight", 240, 146, 70);
+        putEntry(map, "ochre_froglight", 250, 245, 206);
+        putEntry(map, "verdant_froglight", 229, 244, 228);
+        putEntry(map, "pearlescent_froglight", 245, 228, 241);
     }
 
     private static void putEntry(Map<String, PaletteEntry> map, String shortId, int r, int g, int b) {

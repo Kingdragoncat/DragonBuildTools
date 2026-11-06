@@ -12,6 +12,7 @@ import com.dragonbuildtools.converter.Model3DVoxelizer;
 import com.dragonbuildtools.converter.ObjSelectionExporter;
 import com.dragonbuildtools.demo.DemoAssetGenerator;
 import com.dragonbuildtools.gui.DbtGuiManager;
+import com.dragonbuildtools.util.VanillaBlockAppearanceResolver;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.bukkit.WorldEditPlugin;
 import com.sk89q.worldedit.extension.platform.Capability;
@@ -58,9 +59,14 @@ public class DragonBuildToolsPlugin extends JavaPlugin {
         VideoAndGifEngine.getVideosDirectory();
         HeightmapTerrainGenerator.getHeightmapsDirectory();
         ObjSelectionExporter.getExportsDirectory();
+        VanillaBlockAppearanceResolver.getResourcePacksDirectory();
 
-        // Seed built-in starter demo assets asynchronously so first-time users can test immediately
-        Bukkit.getScheduler().runTaskAsynchronously(this, () -> DemoAssetGenerator.ensureStarterAssets(false));
+        // Seed built-in starter demo assets & warm up block color/texture tables asynchronously
+        Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
+            DemoAssetGenerator.ensureStarterAssets(false);
+            VanillaBlockAppearanceResolver.getEmbeddedTable();
+            VanillaBlockAppearanceResolver.discoverAssetSources(null);
+        });
 
         // Initialize live animation manager & interactive Studio GUI
         this.animationManager = new AnimationManager(this);

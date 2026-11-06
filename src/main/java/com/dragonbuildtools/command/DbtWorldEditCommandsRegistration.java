@@ -80,7 +80,7 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
 
     private static final Class<?>[] EXPORT_OBJ_PARAM_TYPES = new Class<?>[]{
             Player.class, LocalSession.class, EditSession.class,
-            String.class, boolean.class, boolean.class
+            String.class, String.class, boolean.class, boolean.class
     };
 
     private static final Class<?>[] NEW_WFC_PARAM_TYPES = new Class<?>[]{
@@ -158,8 +158,10 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
     private final NoArgCommandFlag hollowFlag = flag('h', "Hollow terrain shell");
     private final NoArgCommandFlag bevelFlag = flag('v', "Bevel front and back edges");
     private final NoArgCommandFlag toClipboardFlag = flag('o', "Copy generated build to your //paste clipboard instead of placing");
-    private final NoArgCommandFlag copyToModelsFlag = flag('m', "Also copy exported .obj + .mtl into plugins/DragonBuildTools/models/");
+    private final NoArgCommandFlag copyToModelsFlag = flag('m', "Also copy exported .obj + .mtl + atlas into plugins/DragonBuildTools/models/");
+    private final ArgAcceptingCommandFlag exportPackFlag = valueFlag('p', "pack", "auto", "Resource pack in resourcepacks/ (or 'colors')", STRING_KEY);
     private final CommandArgument exportNameArg = arg("name", "Output .obj filename", "exported_build", STRING_KEY);
+    private final CommandArgument exportPackArg = arg("pack", "Optional resource pack in resourcepacks/ (or 'auto' / 'colors')", "auto", STRING_KEY);
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static CommandArgument arg(String name, String desc, String def, Key<?> key) {
@@ -268,8 +270,8 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
                 getMethod("text3DCommand", TEXT3D_PARAM_TYPES));
 
         registerCollisionSafe("exportobj", ImmutableList.of("/exportobj", "schemtoobj", "/schemtoobj", "toobj", "/toobj"),
-                "Export your WorldEdit selection (or clipboard with -c) to a Wavefront .obj + .mtl 3D mesh",
-                ImmutableList.of(wfcClipboardFlag, copyToModelsFlag, exportNameArg),
+                "Export your WorldEdit selection (or clipboard with -c) to a textured .obj + .mtl + atlas 3D mesh",
+                ImmutableList.of(wfcClipboardFlag, copyToModelsFlag, exportPackFlag, exportNameArg, exportPackArg),
                 this::invokeExportObj,
                 getMethod("exportObjCommand", EXPORT_OBJ_PARAM_TYPES));
 
@@ -525,11 +527,15 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
         Method method = getMethod("exportObjCommand", EXPORT_OBJ_PARAM_TYPES);
         RegistrationUtil.listenersBeforeCall(this.callListeners, method, params);
         try {
+            String packVal = params.has(exportPackFlag)
+                    ? (String) exportPackFlag.value(params).asSingle(STRING_KEY)
+                    : (String) exportPackArg.value(params).asSingle(STRING_KEY);
             container.exportObjCommand(
                     extractPlayer(params),
                     extractSession(params),
                     extractEditSession(params),
                     (String) exportNameArg.value(params).asSingle(STRING_KEY),
+                    packVal,
                     wfcClipboardFlag.in(params),
                     copyToModelsFlag.in(params)
             );

@@ -9,6 +9,7 @@ import com.dragonbuildtools.converter.HeightmapTerrainGenerator;
 import com.dragonbuildtools.converter.ImagePixelArtConverter;
 import com.dragonbuildtools.converter.Model3DVoxelizer;
 import com.dragonbuildtools.demo.DemoAssetGenerator;
+import com.dragonbuildtools.util.VanillaBlockAppearanceResolver;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,7 +32,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 /**
- * Interactive 54-slot Chest Studio GUI for Dragon Build Tools v2.0 ({@code /dbt} or {@code /dbt gui}).
+ * Interactive 54-slot Chest Studio GUI for Dragon Build Tools ({@code /dbt} or {@code /dbt gui}).
  */
 public final class DbtGuiManager implements Listener {
 
@@ -42,6 +43,7 @@ public final class DbtGuiManager implements Listener {
         BROWSE_VIDEOS,
         BROWSE_HEIGHTMAPS,
         BROWSE_IMAGES,
+        BROWSE_RESOURCEPACKS,
         ACTIVE_ANIMATIONS
     }
 
@@ -72,7 +74,8 @@ public final class DbtGuiManager implements Listener {
 
     public void openHome(Player player) {
         DbtMenuHolder holder = new DbtMenuHolder(MenuView.HOME);
-        Inventory inv = Bukkit.createInventory(holder, 54, ChatColor.GOLD + "" + ChatColor.BOLD + "Dragon Build Tools v2.0");
+        String ver = plugin != null ? plugin.getDescription().getVersion() : "2.1.0";
+        Inventory inv = Bukkit.createInventory(holder, 54, ChatColor.GOLD + "" + ChatColor.BOLD + "Dragon Build Tools v" + ver);
         holder.setInventory(inv);
         fillBorder(inv, Material.BLACK_STAINED_GLASS_PANE);
 
@@ -123,8 +126,9 @@ public final class DbtGuiManager implements Listener {
 
         inv.setItem(16, makeItem(Material.CRAFTING_TABLE,
                 ChatColor.AQUA + "Export Selection to .OBJ",
-                ChatColor.GRAY + "Exports your current WorldEdit selection",
-                ChatColor.GRAY + "to a Blender-ready .obj + .mtl 3D mesh!",
+                ChatColor.GRAY + "Exports your WorldEdit selection to a",
+                ChatColor.GRAY + "textured .obj + .mtl + atlas 3D mesh!",
+                ChatColor.DARK_GRAY + "Supports packs in resourcepacks/",
                 "",
                 ChatColor.YELLOW + "Click " + ChatColor.WHITE + "-> //exportobj my_build -m"));
 
@@ -163,6 +167,14 @@ public final class DbtGuiManager implements Listener {
                 ChatColor.GRAY + "Files: " + ChatColor.WHITE + countFiles(ImagePixelArtConverter.getImagesDirectory(), ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"),
                 "",
                 ChatColor.YELLOW + "Click to build wall or floor art"));
+
+        inv.setItem(33, makeItem(Material.CHEST,
+                ChatColor.AQUA + "Resource Packs (.OBJ Export)",
+                ChatColor.DARK_GRAY + "plugins/DragonBuildTools/resourcepacks/",
+                ChatColor.GRAY + "Packs: " + ChatColor.WHITE + collectResourcePacks().size(),
+                ChatColor.GRAY + "Drop .zip or folder packs here for //exportobj!",
+                "",
+                ChatColor.YELLOW + "Click to export with a specific pack"));
 
         int activeCount = plugin.getAnimationManager() != null ? plugin.getAnimationManager().getActiveAnimations().size() : 0;
         inv.setItem(34, makeItem(Material.REDSTONE_TORCH,
@@ -218,6 +230,12 @@ public final class DbtGuiManager implements Listener {
                 iconMat = Material.GRASS_BLOCK;
                 exts = new String[]{".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"};
                 break;
+            case BROWSE_RESOURCEPACKS:
+                folder = VanillaBlockAppearanceResolver.getResourcePacksDirectory();
+                title = "DBT: Resource Packs (.OBJ)";
+                iconMat = Material.CHEST;
+                exts = new String[]{".zip", ".jar"};
+                break;
             case BROWSE_IMAGES:
             default:
                 folder = ImagePixelArtConverter.getImagesDirectory();
@@ -232,7 +250,9 @@ public final class DbtGuiManager implements Listener {
         holder.setInventory(inv);
         fillBorder(inv, Material.GRAY_STAINED_GLASS_PANE);
 
-        List<File> files = collectMatchingFiles(folder, exts);
+        List<File> files = view == MenuView.BROWSE_RESOURCEPACKS
+                ? collectResourcePacks()
+                : collectMatchingFiles(folder, exts);
         if (view == MenuView.BROWSE_ANIMATIONS) {
             files.addAll(collectMatchingFiles(AnimatedModelEngine.getAnimationsDirectory(), exts));
         }
@@ -244,7 +264,7 @@ public final class DbtGuiManager implements Listener {
             holder.slotPayloads.put(slot, f.getName());
 
             List<String> lore = new ArrayList<>();
-            lore.add(ChatColor.DARK_GRAY + String.format("%.1f KB", f.length() / 1024.0));
+            lore.add(ChatColor.DARK_GRAY + (f.isDirectory() ? "Unzipped Pack Folder" : String.format("%.1f KB", f.length() / 1024.0)));
             lore.add("");
             if (view == MenuView.BROWSE_VIDEOS) {
                 lore.add(ChatColor.YELLOW + "Left-Click " + ChatColor.WHITE + "-> Flat Wall Screen (auto-play)");
@@ -252,6 +272,9 @@ public final class DbtGuiManager implements Listener {
             } else if (view == MenuView.BROWSE_ANIMATIONS) {
                 lore.add(ChatColor.YELLOW + "Left-Click " + ChatColor.WHITE + "-> Animate (wingflap)");
                 lore.add(ChatColor.YELLOW + "Right-Click " + ChatColor.WHITE + "-> Animate (spin turntable)");
+            } else if (view == MenuView.BROWSE_RESOURCEPACKS) {
+                lore.add(ChatColor.YELLOW + "Left-Click " + ChatColor.WHITE + "-> Export Selection with this pack");
+                lore.add(ChatColor.YELLOW + "Right-Click " + ChatColor.WHITE + "-> Export Clipboard (-c) with this pack");
             } else {
                 lore.add(ChatColor.YELLOW + "Left-Click " + ChatColor.WHITE + "-> Build in front of you");
                 lore.add(ChatColor.YELLOW + "Right-Click " + ChatColor.WHITE + "-> Copy to //paste clipboard (-o)");
@@ -363,6 +386,11 @@ public final class DbtGuiManager implements Listener {
             case BROWSE_IMAGES:
                 player.performCommand("/pixelart " + fileName + " 64 0" + (right ? " -o" : ""));
                 break;
+            case BROWSE_RESOURCEPACKS: {
+                String safePack = fileName.replace(' ', '_');
+                player.performCommand("/exportobj build_" + (System.currentTimeMillis() % 10000) + " -p " + safePack + " -m" + (right ? " -c" : ""));
+                break;
+            }
             default:
                 break;
         }
@@ -414,6 +442,9 @@ public final class DbtGuiManager implements Listener {
                 break;
             case 32:
                 openBrowser(player, MenuView.BROWSE_IMAGES);
+                break;
+            case 33:
+                openBrowser(player, MenuView.BROWSE_RESOURCEPACKS);
                 break;
             case 34:
                 openActiveAnimations(player);
@@ -535,6 +566,30 @@ public final class DbtGuiManager implements Listener {
                 if (lower.endsWith(ext)) {
                     out.add(f);
                     break;
+                }
+            }
+        }
+        out.sort(Comparator.comparing(File::getName));
+        return out;
+    }
+
+    private static List<File> collectResourcePacks() {
+        List<File> out = new ArrayList<>();
+        File dir = VanillaBlockAppearanceResolver.getResourcePacksDirectory();
+        if (dir == null || !dir.exists()) {
+            return out;
+        }
+        File[] list = dir.listFiles();
+        if (list == null) {
+            return out;
+        }
+        for (File f : list) {
+            if (f.isDirectory()) {
+                out.add(f);
+            } else if (f.isFile()) {
+                String lower = f.getName().toLowerCase();
+                if (lower.endsWith(".zip") || lower.endsWith(".jar")) {
+                    out.add(f);
                 }
             }
         }

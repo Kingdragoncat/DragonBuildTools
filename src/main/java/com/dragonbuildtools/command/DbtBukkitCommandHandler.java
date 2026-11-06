@@ -10,6 +10,7 @@ import com.dragonbuildtools.converter.ImagePixelArtConverter;
 import com.dragonbuildtools.converter.Model3DVoxelizer;
 import com.dragonbuildtools.converter.ObjSelectionExporter;
 import com.dragonbuildtools.demo.DemoAssetGenerator;
+import com.dragonbuildtools.util.VanillaBlockAppearanceResolver;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -225,16 +226,18 @@ public class DbtBukkitCommandHandler implements CommandExecutor, TabCompleter {
             case "exportobj":
             case "schemtoobj":
             case "toobj": {
-                sender.sendMessage(ChatColor.DARK_AQUA + "=== " + ChatColor.GOLD + "DBT: Export Selection to .OBJ + .MTL" + ChatColor.DARK_AQUA + " ===");
-                sender.sendMessage(ChatColor.AQUA + "//exportobj <name> [-c] [-m]");
+                sender.sendMessage(ChatColor.DARK_AQUA + "=== " + ChatColor.GOLD + "DBT: Export Selection to Textured .OBJ + .MTL" + ChatColor.DARK_AQUA + " ===");
+                sender.sendMessage(ChatColor.AQUA + "//exportobj <name> [pack|auto|colors] [-p <pack>] [-c] [-m]");
                 sender.sendMessage(ChatColor.GRAY + "Aliases: " + ChatColor.WHITE + "//schemtoobj, //toobj, /exportobj");
-                sender.sendMessage(ChatColor.GRAY + "Output:  " + ChatColor.WHITE + "plugins/DragonBuildTools/exports/<name>.obj (+ .mtl)");
-                sender.sendMessage(ChatColor.WHITE + "  -c  " + ChatColor.GRAY + "Export from your //copy clipboard instead of your selection");
-                sender.sendMessage(ChatColor.WHITE + "  -m  " + ChatColor.GRAY + "Also copy into models/ so you can re-import or //animmodel it");
+                sender.sendMessage(ChatColor.GRAY + "Output:  " + ChatColor.WHITE + "plugins/DragonBuildTools/exports/<name>.obj (+ .mtl + _atlas.png)");
+                sender.sendMessage(ChatColor.GRAY + "Packs:   " + ChatColor.WHITE + "Drop any resource pack (.zip or folder) into plugins/DragonBuildTools/resourcepacks/");
+                sender.sendMessage(ChatColor.WHITE + "  -p <pack> " + ChatColor.GRAY + "Select a specific pack (or 'colors' for untextured)");
+                sender.sendMessage(ChatColor.WHITE + "  -c        " + ChatColor.GRAY + "Export from your //copy clipboard instead of your selection");
+                sender.sendMessage(ChatColor.WHITE + "  -m        " + ChatColor.GRAY + "Also copy into models/ so you can re-import or //animmodel it");
                 return;
             }
             default: {
-                sender.sendMessage(ChatColor.DARK_AQUA + "=== " + ChatColor.GOLD + "Dragon Build Tools (DBT) v2.0.0" + ChatColor.DARK_AQUA + " ===");
+                sender.sendMessage(ChatColor.DARK_AQUA + "=== " + ChatColor.GOLD + "Dragon Build Tools (DBT) v2.1" + ChatColor.DARK_AQUA + " ===");
                 sender.sendMessage(ChatColor.YELLOW + "Commands " + ChatColor.GRAY + "(run " + ChatColor.WHITE + "/dbt" + ChatColor.GRAY + " for GUI or " + ChatColor.WHITE + "/dbt help <topic>" + ChatColor.GRAY + "):");
                 sender.sendMessage(ChatColor.AQUA + "  /dbt                              " + ChatColor.GRAY + "- Open interactive Chest Studio GUI");
                 sender.sendMessage(ChatColor.AQUA + "  /dbt demo <dragon|cinema|knot...> " + ChatColor.GRAY + "- Spawn built-in starter demos right away");
@@ -242,7 +245,7 @@ public class DbtBukkitCommandHandler implements CommandExecutor, TabCompleter {
                 sender.sendMessage(ChatColor.AQUA + "  //animmodel <src> [size] [mode]   " + ChatColor.GRAY + "- Animated 3D Model (wingflap/spin/hover/etc.)");
                 sender.sendMessage(ChatColor.AQUA + "  //video create <name> <file>      " + ChatColor.GRAY + "- Named Video / GIF Screen (-f, -u, -a, -r)");
                 sender.sendMessage(ChatColor.AQUA + "  //newwfc <grid> [wfc] [vars]      " + ChatColor.GRAY + "- 3D WFC Generator (-n, -c, -b, -j, -l, -g)");
-                sender.sendMessage(ChatColor.AQUA + "  //exportobj <name> [-c] [-m]      " + ChatColor.GRAY + "- Export selection/clipboard to .obj + .mtl");
+                sender.sendMessage(ChatColor.AQUA + "  //exportobj <name> [pack] [-c][-m]" + ChatColor.GRAY + "- Export selection to textured .obj + .mtl");
                 sender.sendMessage(ChatColor.AQUA + "  //pixelart <src> [w] [h]          " + ChatColor.GRAY + "- 2D Image to Pixel Art (-f, -o)");
                 sender.sendMessage(ChatColor.AQUA + "  //heightmap <src> [size] [maxY]   " + ChatColor.GRAY + "- Heightmap / DEM to 3D Terrain (-w, -o)");
                 sender.sendMessage(ChatColor.AQUA + "  //text3d <h> <depth> <blk> <text> " + ChatColor.GRAY + "- 3D Extruded Text (-v, -o)");
@@ -331,6 +334,7 @@ public class DbtBukkitCommandHandler implements CommandExecutor, TabCompleter {
         sendDirFiles(sender, "animations", AnimatedModelEngine.getAnimationsDirectory());
         sendDirFiles(sender, "videos", VideoAndGifEngine.getVideosDirectory());
         sendDirFiles(sender, "heightmaps", HeightmapTerrainGenerator.getHeightmapsDirectory());
+        sendDirFiles(sender, "resourcepacks", VanillaBlockAppearanceResolver.getResourcePacksDirectory());
         sendDirFiles(sender, "exports", ObjSelectionExporter.getExportsDirectory());
     }
 

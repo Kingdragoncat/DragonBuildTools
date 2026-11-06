@@ -2,23 +2,23 @@
   <img src="assets/logo.png" width="170" alt="Dragon Build Tools">
 </p>
 
-<h1 align="center">Dragon Build Tools v2.0</h1>
+<h1 align="center">Dragon Build Tools v2.1</h1>
 
 <p align="center">
-  3D model importing, live animations, video screens, 3D WFC, terrain heightmaps, and <code>.obj</code> exporting for <b>FastAsyncWorldEdit</b>.
+  3D model importing, live animations, video screens, 3D WFC, terrain heightmaps, and resource-pack <code>.obj</code> exporting for <b>FastAsyncWorldEdit</b>.
 </p>
 
 ---
 
-Dragon Build Tools (DBT) is a Paper/Spigot addon for FastAsyncWorldEdit that adds in-game tools for converting 3D meshes, images, heightmaps, animated GIFs/videos, and 3D text into Minecraft builds, generating modular builds with 3D Wave Function Collapse, and exporting builds back out to `.obj` + `.mtl` for Blender.
+Dragon Build Tools (DBT) is a Paper/Spigot addon for FastAsyncWorldEdit that adds in-game tools for converting 3D meshes, images, heightmaps, animated GIFs/videos, and 3D text into Minecraft builds, generating modular builds with 3D Wave Function Collapse, and exporting builds back out to textured `.obj` + `.mtl` meshes for Blender.
 
 Instead of only placing full cubes, DBT checks surface slopes and sub-voxel occupancy to place directional stairs, top/bottom slabs, walls, fences, carpets, and snow layers (1-7) where they fit, while avoiding ugly stacked stairs or mismatched wood/terracotta hues on neutral stone and white builds. Static generators run through normal FAWE edit sessions (`//undo` and `//redo`) or copy straight to your `//paste` clipboard with `-o`.
 
-## What's New in v2.0
+## What's New in v2.1
 
-- **In-Game Studio GUI (`/dbt` or `/dbt gui`):** Browse local folders, click to spawn or copy builds to your clipboard, test starter demos, and pause/speed-adjust/stop active animations from a chest menu.
-- **Built-In Starter Demos (`/dbt demo`):** Ships with starter 3D models (`dragon_statue.obj`, `crystal_knot.obj`), an animated GIF (`synthwave_sunset.gif`), a heightmap (`alpine_island.png`), and pixel art so you can test everything right after installing without hunting for files first.
-- **Minecraft to Blender Exporter (`//exportobj`):** Export any WorldEdit selection (or your clipboard with `-c`) into a face-culled `.obj` + `.mtl` 3D mesh with stair, slab, and snow-layer geometry.
+- **Resource Pack Models & UV Texture Atlas in `//exportobj`:** Drop any `.zip` resource pack or unzipped pack folder into `plugins/DragonBuildTools/resourcepacks/` and `//exportobj` exports custom 3D JSON block models, blockstates (stairs, slabs, fences, walls, cross plants, trapdoors, lanterns, directional logs), biome foliage/grass tints, and a crisp `<name>_atlas.png` UV texture sheet ready for Blender renders.
+- **Zero Bundled Vanilla Assets & Full 1,200-Block Color Coverage:** No Mojang textures or models are packaged inside the plugin JAR. When no custom pack overrides a block, DBT layers over FAWE's runtime-downloaded client asset JAR (`plugins/FastAsyncWorldEdit/textures/`) and includes a complete 1,200-block per-face color & shape fallback table (`1.20.4` - `26.3`) so blocks never export with missing gray colors.
+- **In-Game Studio GUI & Starter Demos (`/dbt`):** Browse local folders, click to spawn or copy builds to your clipboard, test starter demos (`/dbt demo`), and pause/speed-adjust/stop active animations from a chest menu.
 - **Direct Clipboard Mode (`-o`):** Generate `//model`, `//pixelart`, `//heightmap`, or `//text3d` directly onto your WorldEdit clipboard instead of placing immediately in the world.
 
 ## Requirements
@@ -30,9 +30,9 @@ Instead of only placing full cubes, DBT checks surface slopes and sub-voxel occu
 
 ## Installation
 
-1. Put `DragonBuildTools-2.0.0.jar` into your server's `plugins/` folder alongside FastAsyncWorldEdit.
+1. Put `DragonBuildTools-2.1.0.jar` into your server's `plugins/` folder alongside FastAsyncWorldEdit.
 2. Start or restart the server.
-3. Run `/dbt` in-game to open the Studio GUI and click any starter demo, or drop your own files into `plugins/DragonBuildTools/` (`models/`, `images/`, `videos/`, `animations/`, `heightmaps/`) or pass `http://` / `https://` URLs directly in commands.
+3. Run `/dbt` in-game to open the Studio GUI and click any starter demo, or drop your own files into `plugins/DragonBuildTools/` (`models/`, `resourcepacks/`, `images/`, `videos/`, `animations/`, `heightmaps/`) or pass `http://` / `https://` URLs directly in commands.
 
 ## Commands
 
@@ -62,13 +62,15 @@ Imports `.obj` (including `.mtl` materials and textures), `.glb`, `.gltf`, `.stl
 
 ### Export Selection to `.OBJ` (`//exportobj`)
 ```text
-//exportobj <name> [-c] [-m]
+//exportobj <name> [pack|auto|colors] [-p <pack>] [-c] [-m]
 ```
 Aliases: `//schemtoobj`, `//toobj`
 
-Exports your WorldEdit selection to `plugins/DragonBuildTools/exports/<name>.obj` (+ `.mtl`) with hidden-face culling and sub-block geometry for stairs, slabs, and snow layers.
+Exports your WorldEdit selection to `plugins/DragonBuildTools/exports/<name>.obj` (+ `<name>.mtl` and `<name>_atlas.png`) with hidden-face culling, resource-pack 3D block models, UV coordinates, biome foliage/grass tints, and sub-block geometry for stairs, slabs, fences, walls, cross plants, trapdoors, lanterns, and snow layers.
+- Drop any `.zip` resource pack or unzipped pack folder into `plugins/DragonBuildTools/resourcepacks/` to export using that pack's textures and 3D JSON block models (layered over FAWE's runtime-downloaded client asset JAR, with no vanilla textures embedded in the plugin).
+- `[pack]` or `-p <pack>` pick a specific pack in `resourcepacks/` (or pass `colors` for flat solid-color materials without a texture atlas)
 - `-c` export from your `//copy` clipboard instead of your selection
-- `-m` also copy the exported `.obj` + `.mtl` into `models/` so you can re-import or animate it with `//animmodel`
+- `-m` also copy the exported `.obj` + `.mtl` (+ `_atlas.png`) into `models/` so you can re-import or animate it with `//animmodel`
 
 ### Animated 3D Models (`//animmodel`)
 ```text
@@ -144,7 +146,7 @@ Extrudes 3D text using `<block>` (can be any WorldEdit pattern). Use `_` for spa
 ./gradlew build
 ```
 
-The compiled JAR is written to `build/libs/DragonBuildTools-2.0.0.jar`.
+The compiled JAR is written to `build/libs/DragonBuildTools-2.1.0.jar`.
 
 ---
 *Logo by Dustbeam.*

@@ -22,6 +22,11 @@ import com.dragonbuildtools.converter.Model3DVoxelizer.Mesh3D;
 import com.dragonbuildtools.converter.Model3DVoxelizer.VoxelGrid;
 import com.dragonbuildtools.converter.Text3DGenerator;
 import com.dragonbuildtools.util.BlockColorMapper;
+import com.dragonbuildtools.util.VanillaBlockAppearanceResolver;
+import com.dragonbuildtools.util.VanillaBlockAppearanceResolver.BlockColorRecord;
+import com.dragonbuildtools.util.VanillaBlockAppearanceResolver.ExportTextureSession;
+import com.dragonbuildtools.util.VanillaBlockAppearanceResolver.ShapeKind;
+import com.dragonbuildtools.util.VanillaBlockAppearanceResolver.TexturedModelQuad;
 import com.dragonbuildtools.wfc.Wfc3DGridGenerator;
 import com.sk89q.worldedit.command.util.CommandPermissionsConditionGenerator;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -31,8 +36,13 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.List;
+import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import javax.imageio.ImageIO;
 import org.enginehub.piston.CommandManager;
 import org.enginehub.piston.impl.CommandManagerServiceImpl;
@@ -248,5 +258,154 @@ class DragonBuildToolsTest {
         assertEquals(20, gifFrames.size(), "Synthwave starter GIF must contain 20 animated frames");
         assertTrue(hmapFile.length() > 100);
         assertTrue(crestFile.length() > 100);
+    }
+
+    @Test
+    void testVanillaBlockColorTableAndDustbeamRegression() {
+        Map<String, BlockColorRecord> table = VanillaBlockAppearanceResolver.getEmbeddedTable();
+        assertTrue(table.size() >= 1190, "Embedded vanilla color table must cover all 1,190+ vanilla blocks");
+
+        // Regression check for DustBeam's candy-cane red blocks that previously fell back to (150, 150, 150) gray
+        String[] redBlocks = {
+                "netherrack", "stripped_mangrove_wood", "mangrove_planks", "red_concrete_powder",
+                "red_mushroom_block", "crimson_hyphae", "red_glazed_terracotta", "red_nether_bricks",
+                "red_wool", "red_concrete", "red_terracotta"
+        };
+        for (String name : redBlocks) {
+            BlockColorRecord rec = table.get(name);
+            assertNotNull(rec, "Missing block in color table: " + name);
+            assertTrue(rec.sideRgb[0] > rec.sideRgb[1] + 20 && rec.sideRgb[0] > rec.sideRgb[2] + 15,
+                    name + " must be distinctly red, got RGB=" + java.util.Arrays.toString(rec.sideRgb));
+        }
+
+        // Regression check for spruce_leaves (must be dark evergreen CUTOUT_CUBE, not bright lime green CUBE)
+        BlockColorRecord spruce = table.get("spruce_leaves");
+        assertNotNull(spruce);
+        assertEquals(ShapeKind.CUTOUT_CUBE, spruce.shapeKind);
+        assertTrue(spruce.sideRgb[1] > spruce.sideRgb[0] && spruce.sideRgb[1] < 110,
+                "spruce_leaves must be dark evergreen, got " + java.util.Arrays.toString(spruce.sideRgb));
+
+        // Cherry leaves must be pink, not tinted green
+        BlockColorRecord cherry = table.get("cherry_leaves");
+        assertNotNull(cherry);
+        assertEquals(ShapeKind.CUTOUT_CUBE, cherry.shapeKind);
+        assertTrue(cherry.sideRgb[0] > cherry.sideRgb[1] + 20, "cherry_leaves must be pink");
+
+        // Grass block top is green, bottom is brown dirt
+        BlockColorRecord grass = table.get("grass_block");
+        assertNotNull(grass);
+        assertEquals(ShapeKind.CUBE, grass.shapeKind);
+        assertTrue(grass.topRgb[1] > grass.topRgb[0], "grass_block top must be green");
+        assertTrue(grass.bottomRgb[0] > grass.bottomRgb[1], "grass_block bottom must be dirt brown");
+
+        // Non-cube shapes & invisible blocks
+        assertEquals(ShapeKind.INVISIBLE, table.get("barrier").shapeKind);
+        assertEquals(ShapeKind.INVISIBLE, table.get("air").shapeKind);
+        assertEquals(ShapeKind.INVISIBLE, table.get("structure_void").shapeKind);
+        assertEquals(ShapeKind.CROSS, table.get("short_grass").shapeKind);
+        assertEquals(ShapeKind.STAIRS, table.get("oak_stairs").shapeKind);
+        assertEquals(ShapeKind.SLAB, table.get("stone_brick_slab").shapeKind);
+        assertEquals(ShapeKind.SNOW, table.get("snow").shapeKind);
+    }
+
+    @Test
+    void testCustomResourcePackZipAnd3DBlockModelResolution(@TempDir File tempDir) throws Exception {
+        // Build a synthetic custom resource pack ZIP wrapped inside a top-level folder (common CurseForge/Modrinth layout)
+        File packZip = new File(tempDir, "TestRenderPack.zip");
+        BufferedImage rubyPng = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = rubyPng.createGraphics();
+        g.setColor(new Color(220, 25, 45, 255));
+        g.fillRect(0, 0, 32, 32);
+        g.dispose();
+        ByteArrayOutputStream pngBytes = new ByteArrayOutputStream();
+        ImageIO.write(rubyPng, "png", pngBytes);
+
+        // Also test animated vertical strip (16x48 -> cropped to top 16x16 frame)
+        BufferedImage animPng = new BufferedImage(16, 48, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D ga = animPng.createGraphics();
+        ga.setColor(new Color(30, 180, 240, 255)); // top frame cyan
+        ga.fillRect(0, 0, 16, 16);
+        ga.setColor(new Color(0, 0, 0, 255)); // lower frames black
+        ga.fillRect(0, 16, 16, 32);
+        ga.dispose();
+        ByteArrayOutputStream animBytes = new ByteArrayOutputStream();
+        ImageIO.write(animPng, "png", animBytes);
+
+        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(packZip))) {
+            writeZipText(zos, "MyCustomPack/pack.mcmeta", "{\"pack\":{\"pack_format\":34,\"description\":\"Test\"}}");
+            writeZipText(zos, "MyCustomPack/assets/minecraft/blockstates/redstone_block.json",
+                    "{\"variants\":{\"\":{\"model\":\"minecraft:block/custom_pedestal\"}}}");
+            // Test 3D multi-element model + MC 26.2 {"sprite": "..."} texture object syntax
+            writeZipText(zos, "MyCustomPack/assets/minecraft/models/block/custom_pedestal.json",
+                    "{"
+                            + "\"textures\":{\"ruby\":{\"sprite\":\"minecraft:block/ruby_pedestal\"},\"cap\":\"minecraft:block/cyan_anim\"},"
+                            + "\"elements\":["
+                            + "  {\"from\":[2,0,2],\"to\":[14,12,14],\"faces\":{"
+                            + "    \"north\":{\"texture\":\"#ruby\"},\"south\":{\"texture\":\"#ruby\"},"
+                            + "    \"east\":{\"texture\":\"#ruby\"},\"west\":{\"texture\":\"#ruby\"},"
+                            + "    \"down\":{\"texture\":\"#ruby\",\"cullface\":\"down\"}"
+                            + "  }},"
+                            + "  {\"from\":[0,12,0],\"to\":[16,16,16],\"faces\":{"
+                            + "    \"up\":{\"texture\":\"#cap\",\"cullface\":\"up\"},"
+                            + "    \"north\":{\"texture\":\"#cap\"},\"south\":{\"texture\":\"#cap\"},"
+                            + "    \"east\":{\"texture\":\"#cap\"},\"west\":{\"texture\":\"#cap\"}"
+                            + "  }}"
+                            + "]}");
+            writeZipBytes(zos, "MyCustomPack/assets/minecraft/textures/block/ruby_pedestal.png", pngBytes.toByteArray());
+            writeZipBytes(zos, "MyCustomPack/assets/minecraft/textures/block/cyan_anim.png", animBytes.toByteArray());
+        }
+
+        try (ExportTextureSession session = new ExportTextureSession(List.of(packZip))) {
+            assertTrue(session.hasAssetPacks());
+            List<TexturedModelQuad> quads = session.resolveBlockModelQuadsByName("minecraft:redstone_block", Map.of(), false, 0);
+            assertNotNull(quads, "Custom resource pack 3D block model must resolve quads");
+            assertEquals(10, quads.size(), "Pedestal model has 5 base faces + 5 cap faces = 10 quads");
+
+            TexturedModelQuad rubyQuad = quads.get(0);
+            assertNotNull(rubyQuad.material.texture);
+            assertEquals(32, rubyQuad.material.texture.getWidth());
+            assertEquals(220, rubyQuad.material.r, 2);
+            assertEquals(25, rubyQuad.material.g, 2);
+
+            // Animated 16x48 strip must be cropped to top 16x16 cyan frame (not averaged with black lower frames)
+            TexturedModelQuad capUpQuad = quads.stream()
+                    .filter(q -> q.cullFace == VanillaBlockAppearanceResolver.FaceDir.UP)
+                    .findFirst().orElseThrow();
+            assertEquals(16, capUpQuad.material.texture.getWidth());
+            assertEquals(16, capUpQuad.material.texture.getHeight());
+            assertEquals(180, capUpQuad.material.g, 3);
+        }
+
+        // Verify Wavefront .obj + .mtl with both Kd and map_Kd does not double-darken texture on //model re-import
+        File texFile = new File(tempDir, "atlas.png");
+        Files.write(texFile.toPath(), pngBytes.toByteArray());
+        File mtlFile = new File(tempDir, "roundtrip.mtl");
+        Files.writeString(mtlFile.toPath(),
+                "newmtl ruby\nKd 0.8627 0.0980 0.1765\nmap_Kd atlas.png\n", StandardCharsets.UTF_8);
+        File objFile = new File(tempDir, "roundtrip.obj");
+        Files.writeString(objFile.toPath(),
+                "mtllib roundtrip.mtl\nusemtl ruby\n"
+                        + "v 0 0 0\nv 1 0 0\nv 1 1 0\n"
+                        + "vt 0.1 0.1\nvt 0.9 0.1\nvt 0.9 0.9\n"
+                        + "f 1/1 2/2 3/3\n", StandardCharsets.UTF_8);
+
+        Mesh3D reimported = Model3DVoxelizer.loadModel(objFile.getAbsolutePath());
+        assertEquals(1, reimported.triangles.size());
+        Model3DVoxelizer.Triangle3D tri = reimported.triangles.get(0);
+        assertNotNull(tri.material);
+        assertNotNull(tri.material.texture);
+        assertFalse(tri.material.multiplyTextureByKd,
+                "Wavefront .mtl Kd + map_Kd must not double-multiply Kd onto texture brightness");
+        assertEquals(220, (tri.material.texture.getRGB(0, 0) >> 16) & 0xFF, 2);
+    }
+
+    private static void writeZipText(ZipOutputStream zos, String entryName, String text) throws Exception {
+        writeZipBytes(zos, entryName, text.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void writeZipBytes(ZipOutputStream zos, String entryName, byte[] data) throws Exception {
+        zos.putNextEntry(new ZipEntry(entryName));
+        zos.write(data);
+        zos.closeEntry();
     }
 }

@@ -823,11 +823,12 @@ public class DbtWorldEditCommands {
             LocalSession session,
             EditSession editSession,
             String outputName,
+            String packName,
             boolean fromClipboard,
             boolean copyToModels
     ) {
         if (outputName == null || outputName.equalsIgnoreCase("help") || outputName.equalsIgnoreCase("?")) {
-            player.print(TextComponent.of("Usage: //exportobj <name> [-c (from clipboard)] [-m (also save in models/)]", TextColor.AQUA));
+            player.print(TextComponent.of("Usage: //exportobj <name> [pack|auto|colors] [-p <pack>] [-c (clipboard)] [-m (copy to models/)]", TextColor.AQUA));
             return;
         }
         Extent extent = editSession;
@@ -851,10 +852,15 @@ public class DbtWorldEditCommands {
         }
 
         try {
-            ExportResult res = ObjSelectionExporter.exportRegionToObj(extent, region, outputName, copyToModels);
+            ExportResult res = ObjSelectionExporter.exportRegionToObj(extent, region, outputName, packName, copyToModels);
+            String packNote = res.packLayersUsed.isEmpty()
+                    ? (res.atlasFile != null ? " [embedded 1200-block palette]" : " [colors only]")
+                    : (" [packs: " + String.join(" + ", res.packLayersUsed) + "]");
             player.print(TextComponent.of(
                     "[DBT] Exported " + res.exportedBlocks + " blocks (" + res.exportedQuads + " faces, "
                             + res.materialCount + " materials) -> plugins/DragonBuildTools/exports/" + res.objFile.getName()
+                            + (res.atlasFile != null ? " + " + res.atlasFile.getName() : "")
+                            + packNote
                             + (copyToModels ? " (+ copied to models/)" : ""),
                     TextColor.LIGHT_PURPLE
             ));
