@@ -74,7 +74,7 @@ public final class DbtGuiManager implements Listener {
 
     public void openHome(Player player) {
         DbtMenuHolder holder = new DbtMenuHolder(MenuView.HOME);
-        String ver = plugin != null ? plugin.getDescription().getVersion() : "2.1.0";
+        String ver = plugin != null ? plugin.getDescription().getVersion() : "2.2.0";
         Inventory inv = Bukkit.createInventory(holder, 54, ChatColor.GOLD + "" + ChatColor.BOLD + "Dragon Build Tools v" + ver);
         holder.setInventory(inv);
         fillBorder(inv, Material.BLACK_STAINED_GLASS_PANE);
@@ -131,6 +131,25 @@ public final class DbtGuiManager implements Listener {
                 ChatColor.DARK_GRAY + "Supports packs in resourcepacks/",
                 "",
                 ChatColor.YELLOW + "Click " + ChatColor.WHITE + "-> //exportobj my_build -m"));
+
+        // Row 3: Sculpting & Color Brushes
+        inv.setItem(21, makeItem(Material.MAGMA_CREAM,
+                ChatColor.LIGHT_PURPLE + "Brush: Gaussian Color Blur",
+                ChatColor.GRAY + "3D Gaussian blur across block colors.",
+                ChatColor.GRAY + "Sub-blocks blur color while staying",
+                ChatColor.GRAY + "the exact stair/slab/wall they were!",
+                "",
+                ChatColor.YELLOW + "Left-Click " + ChatColor.WHITE + "-> //gblur 5 1.6 1.0",
+                ChatColor.YELLOW + "Right-Click " + ChatColor.WHITE + "-> Local palette only (-p)"));
+
+        inv.setItem(23, makeItem(Material.SLIME_BALL,
+                ChatColor.GREEN + "Brush: Sub-Block BlendBall",
+                ChatColor.GRAY + "2x2x2 sub-voxel BlendBall smoothing!",
+                ChatColor.GRAY + "Chamfers steps, corners, bumps & holes",
+                ChatColor.GRAY + "into directional stairs & slabs.",
+                "",
+                ChatColor.YELLOW + "Left-Click " + ChatColor.WHITE + "-> //subblend 5 1",
+                ChatColor.YELLOW + "Right-Click " + ChatColor.WHITE + "-> Geometry only (-g)"));
 
         // Row 4: Local Folder Browsers
         inv.setItem(28, makeItem(Material.ARMOR_STAND,
@@ -428,6 +447,16 @@ public final class DbtGuiManager implements Listener {
                 player.closeInventory();
                 player.performCommand("/exportobj build_" + (System.currentTimeMillis() % 10000) + " -m");
                 break;
+            case 21:
+                player.closeInventory();
+                ensureHeldItemForBrush(player, ChatColor.LIGHT_PURPLE + "DBT Gaussian Blur Brush");
+                player.performCommand("/gblur 5 1.6 1.0" + (right ? " -p" : ""));
+                break;
+            case 23:
+                player.closeInventory();
+                ensureHeldItemForBrush(player, ChatColor.GREEN + "DBT Sub-Block BlendBall");
+                player.performCommand("/subblend 5 1" + (right ? " -g" : ""));
+                break;
             case 28:
                 openBrowser(player, MenuView.BROWSE_MODELS);
                 break;
@@ -542,6 +571,13 @@ public final class DbtGuiManager implements Listener {
             stack.setItemMeta(meta);
         }
         return stack;
+    }
+
+    private static void ensureHeldItemForBrush(Player player, String defaultToolTitle) {
+        ItemStack hand = player.getInventory().getItemInMainHand();
+        if (hand == null || hand.getType().isAir()) {
+            player.getInventory().setItemInMainHand(makeItem(Material.FEATHER, defaultToolTitle));
+        }
     }
 
     private static int countFiles(File dir, String... exts) {

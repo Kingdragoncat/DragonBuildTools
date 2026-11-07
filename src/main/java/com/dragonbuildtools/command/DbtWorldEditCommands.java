@@ -6,6 +6,9 @@ import com.dragonbuildtools.animation.AnimatedModelEngine.MotionMode;
 import com.dragonbuildtools.animation.AnimationManager;
 import com.dragonbuildtools.animation.AnimationManager.ActiveAnimation;
 import com.dragonbuildtools.animation.VideoAndGifEngine;
+import com.dragonbuildtools.brush.DbtBrushBinder;
+import com.dragonbuildtools.brush.GaussianColorBlurBrush;
+import com.dragonbuildtools.brush.SubBlockBlendBallBrush;
 import com.dragonbuildtools.converter.HeightmapTerrainGenerator;
 import com.dragonbuildtools.converter.ImagePixelArtConverter;
 import com.dragonbuildtools.converter.Model3DVoxelizer;
@@ -50,7 +53,8 @@ import org.bukkit.Bukkit;
 /**
  * WorldEdit / FAWE commands for Dragon Build Tools (DBT):
  * {@code //pixelart}, {@code //model}, {@code //animmodel}, {@code //video}, {@code //anim},
- * {@code //heightmap}, {@code //text3d}, and {@code //newwfc}.
+ * {@code //heightmap}, {@code //text3d}, {@code //exportobj}, {@code //newwfc},
+ * {@code //gblur}, {@code //subblend}, and {@code /dbr}.
  */
 public class DbtWorldEditCommands {
 
@@ -976,6 +980,109 @@ public class DbtWorldEditCommands {
         );
         generator.execute();
         player.printInfo(Caption.of("fawe.worldedit.visitor.visitor.block", new Object[]{ editSession.getBlockChangeCount() }));
+    }
+
+    @CommandPermissions({"dragonbuildtools.use"})
+    public void gaussianBlurBrushCommand(
+            Player player,
+            LocalSession session,
+            double radius,
+            double sigma,
+            double strength,
+            boolean localPaletteOnly,
+            boolean hardEdge,
+            String maskStr
+    ) {
+        double clampedRadius = Math.max(1.0, Math.min(40.0, radius));
+        double clampedSigma = Math.max(0.35, Math.min(6.0, sigma));
+        double clampedStrength = Math.max(0.05, Math.min(1.0, strength));
+
+        GaussianColorBlurBrush brush = new GaussianColorBlurBrush(
+                clampedSigma, clampedStrength, localPaletteOnly, hardEdge
+        );
+        String flagsInfo = (localPaletteOnly ? " [-p local-palette]" : "")
+                + (hardEdge ? " [-h hard-edge]" : "")
+                + (maskStr != null && !maskStr.trim().isEmpty() ? " [-m " + maskStr.trim() + "]" : "");
+        String summary = String.format(Locale.US,
+                "[DBT] Equipped Gaussian Color Blur Brush (radius=%.1f, sigma=%.2f, strength=%.2f)%s — sub-blocks stay their exact shape!",
+                clampedRadius, clampedSigma, clampedStrength, flagsInfo);
+        DbtBrushBinder.equipBrush(player, session, brush, clampedRadius, maskStr, "dbt_gblur", summary);
+    }
+
+    @CommandPermissions({"dragonbuildtools.use"})
+    public void subBlockBlendBallCommand(
+            Player player,
+            LocalSession session,
+            double radius,
+            int minDiff,
+            boolean airOnly,
+            boolean geometryOnly,
+            boolean allowWalls,
+            boolean allowSnow,
+            String maskStr
+    ) {
+        double clampedRadius = Math.max(1.0, Math.min(35.0, radius));
+        int clampedMinDiff = Math.max(1, Math.min(10, minDiff));
+
+        SubBlockBlendBallBrush brush = new SubBlockBlendBallBrush(
+                clampedMinDiff, airOnly, geometryOnly, allowWalls, allowSnow
+        );
+        String flagsInfo = (airOnly ? " [-a air-only]" : "")
+                + (geometryOnly ? " [-g geometry-only]" : "")
+                + (allowWalls ? " [-w walls]" : "")
+                + (allowSnow ? " [-y snow]" : "")
+                + (maskStr != null && !maskStr.trim().isEmpty() ? " [-m " + maskStr.trim() + "]" : "");
+        String summary = String.format(Locale.US,
+                "[DBT] Equipped Sub-Block BlendBall Brush (radius=%.1f, minDiff=%d)%s — chamfers steps & corners into stairs/slabs!",
+                clampedRadius, clampedMinDiff, flagsInfo);
+        DbtBrushBinder.equipBrush(player, session, brush, clampedRadius, maskStr, "dbt_subblend", summary);
+    }
+
+    @CommandPermissions({"dragonbuildtools.use"})
+    public void dragonBrushCommand(
+            Player player,
+            LocalSession session,
+            String brushType,
+            double radius,
+            double param2,
+            double param3,
+            boolean localPaletteFlag,
+            boolean hardEdgeFlag,
+            boolean airOnlyFlag,
+            boolean geomOnlyFlag,
+            boolean wallsFlag,
+            boolean snowFlag,
+            String maskStr
+    ) {
+        String type = brushType == null ? "list" : brushType.trim().toLowerCase(Locale.ROOT);
+        switch (type) {
+            case "gblur":
+            case "blur":
+            case "colorblur":
+            case "gaussian": {
+                double sigma = param2 > 0.0 ? param2 : 1.6;
+                double strength = param3 > 0.0 ? param3 : 1.0;
+                gaussianBlurBrushCommand(player, session, radius, sigma, strength, localPaletteFlag, hardEdgeFlag, maskStr);
+                return;
+            }
+            case "subblend":
+            case "sblend":
+            case "blendball":
+            case "blend":
+            case "subblendball": {
+                int minDiff = param2 >= 1.0 ? (int) Math.round(param2) : 1;
+                subBlockBlendBallCommand(player, session, radius, minDiff, airOnlyFlag, geomOnlyFlag, wallsFlag, snowFlag, maskStr);
+                return;
+            }
+            default: {
+                player.print(TextComponent.of("=== DBT Brushes (Hold any tool/item & run) ===", TextColor.GOLD));
+                player.print(TextComponent.of(" //gblur [radius=5] [sigma=1.6] [strength=1.0] [-p] [-h] [-m <mask>]", TextColor.AQUA));
+                player.print(TextComponent.of("   3D Gaussian color blur (sub-blocks blur color while keeping exact shape/facing).", TextColor.GRAY));
+                player.print(TextComponent.of(" //subblend [radius=5] [minDiff=1] [-a] [-g] [-w] [-y] [-m <mask>]", TextColor.AQUA));
+                player.print(TextComponent.of("   2x2x2 sub-voxel BlendBall (smooths steps, corners, bumps & holes with stairs & slabs).", TextColor.GRAY));
+                player.print(TextComponent.of(" Shortcut: /dbr <gblur|subblend> [radius=5] ...", TextColor.YELLOW));
+            }
+        }
     }
 
     private static BlockVector3 computePlacementOrigin(Player player, int sizeX, int sizeZ, boolean centerOnPlayer) {

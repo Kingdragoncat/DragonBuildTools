@@ -2,24 +2,24 @@
   <img src="assets/logo.png" width="170" alt="Dragon Build Tools">
 </p>
 
-<h1 align="center">Dragon Build Tools v2.1</h1>
+<h1 align="center">Dragon Build Tools v2.2</h1>
 
 <p align="center">
-  3D model importing, live animations, video screens, 3D WFC, terrain heightmaps, and resource-pack <code>.obj</code> exporting for <b>FastAsyncWorldEdit</b>.
+  Sculpting brushes, 3D model importing, live animations, video screens, 3D WFC, terrain heightmaps, and resource-pack <code>.obj</code> exporting for <b>FastAsyncWorldEdit</b>.
 </p>
 
 ---
 
-Dragon Build Tools (DBT) is a Paper/Spigot addon for FastAsyncWorldEdit that adds in-game tools for converting 3D meshes, images, heightmaps, animated GIFs/videos, and 3D text into Minecraft builds, generating modular builds with 3D Wave Function Collapse, and exporting builds back out to textured `.obj` + `.mtl` meshes for Blender.
+Dragon Build Tools (DBT) is a Paper/Spigot addon for FastAsyncWorldEdit that adds sub-block sculpting & color-blur brushes, tools for converting 3D meshes, images, heightmaps, animated GIFs/videos, and 3D text into Minecraft builds, 3D Wave Function Collapse generation, and resource-pack `.obj` + `.mtl` exporting for Blender.
 
-Instead of only placing full cubes, DBT checks surface slopes and sub-voxel occupancy to place directional stairs, top/bottom slabs, walls, fences, carpets, and snow layers (1-7) where they fit, while avoiding ugly stacked stairs or mismatched wood/terracotta hues on neutral stone and white builds. Static generators run through normal FAWE edit sessions (`//undo` and `//redo`) or copy straight to your `//paste` clipboard with `-o`.
+Instead of only placing full cubes, DBT checks surface slopes and sub-voxel occupancy to place directional stairs, top/bottom slabs, walls, fences, carpets, and snow layers (1-7) where they fit, while avoiding ugly stacked stairs or mismatched wood/terracotta hues on neutral stone and white builds. Brushes and static generators run through normal FAWE edit sessions (`//undo` and `//redo`) or copy straight to your `//paste` clipboard with `-o`.
 
-## What's New in v2.1
+## What's New in v2.2
 
-- **Resource Pack Models & UV Texture Atlas in `//exportobj`:** Drop any `.zip` resource pack or unzipped pack folder into `plugins/DragonBuildTools/resourcepacks/` and `//exportobj` exports custom 3D JSON block models, blockstates (stairs, slabs, fences, walls, cross plants, trapdoors, lanterns, directional logs), biome foliage/grass tints, and a crisp `<name>_atlas.png` UV texture sheet ready for Blender renders.
-- **Zero Bundled Vanilla Assets & Full 1,200-Block Color Coverage:** No Mojang textures or models are packaged inside the plugin JAR. When no custom pack overrides a block, DBT layers over FAWE's runtime-downloaded client asset JAR (`plugins/FastAsyncWorldEdit/textures/`) and includes a complete 1,200-block per-face color & shape fallback table (`1.20.4` - `26.3`) so blocks never export with missing gray colors.
-- **In-Game Studio GUI & Starter Demos (`/dbt`):** Browse local folders, click to spawn or copy builds to your clipboard, test starter demos (`/dbt demo`), and pause/speed-adjust/stop active animations from a chest menu.
-- **Direct Clipboard Mode (`-o`):** Generate `//model`, `//pixelart`, `//heightmap`, or `//text3d` directly onto your WorldEdit clipboard instead of placing immediately in the world.
+- **3D Gaussian Color Blur Brush (`//gblur` / `/dbr gblur`):** Smoothly blurs block colors across gradients and seams using a normalized 3D Gaussian kernel (air and water never darken colors). Sub-blocks (stairs, corner stairs, top/bottom slabs, walls, fences, trapdoors, carpets, panes, buttons, plates, and leaves) have their colors blurred too while strictly staying the exact sub-block, facing, half, and connection state they were originally.
+- **Sub-Block BlendBall Brush (`//subblend` / `/dbr subblend`):** Works like FAWE's `/br blendball`, upgraded to `2x2x2` (`0.5`-block) octant resolution. Keeps flat floors and walls untouched while smoothing jagged `1x1x1` steps, 3D corners, overhangs, bumps, and potholes into directional straight stairs, `inner`/`outer` corner stairs, and top/bottom slabs while blending neighbor material families.
+- **Resource Pack Models & UV Texture Atlas in `//exportobj` (v2.1):** Drop any `.zip` resource pack or unzipped pack folder into `plugins/DragonBuildTools/resourcepacks/` and `//exportobj` exports custom 3D JSON block models, blockstates, biome tints, and a crisp `<name>_atlas.png` UV texture sheet ready for Blender renders (with zero Mojang assets bundled in the JAR and a 1,200-block color fallback table).
+- **In-Game Studio GUI & Starter Demos (`/dbt`):** 1-click brush equipping, local asset folder browsers, built-in starter demos (`/dbt demo`), clipboard export (`-o`), and a live animation controller.
 
 ## Requirements
 
@@ -30,7 +30,7 @@ Instead of only placing full cubes, DBT checks surface slopes and sub-voxel occu
 
 ## Installation
 
-1. Put `DragonBuildTools-2.1.0.jar` into your server's `plugins/` folder alongside FastAsyncWorldEdit.
+1. Put `DragonBuildTools-2.2.0.jar` into your server's `plugins/` folder alongside FastAsyncWorldEdit.
 2. Start or restart the server.
 3. Run `/dbt` in-game to open the Studio GUI and click any starter demo, or drop your own files into `plugins/DragonBuildTools/` (`models/`, `resourcepacks/`, `images/`, `videos/`, `animations/`, `heightmaps/`) or pass `http://` / `https://` URLs directly in commands.
 
@@ -43,7 +43,35 @@ Instead of only placing full cubes, DBT checks surface slopes and sub-voxel occu
 /dbt help [topic]
 /dbt files
 ```
-Running `/dbt` as a player opens the chest GUI where you can launch starter demos, click files from your folders (Left-Click to place, Right-Click to copy to `//paste`), or control running animations.
+Running `/dbt` as a player opens the chest GUI where you can equip sculpting brushes, launch starter demos, click files from your folders (Left-Click to place, Right-Click to copy to `//paste`), or control running animations.
+
+### Gaussian Color Blur Brush (`//gblur`)
+```text
+//gblur [radius=5] [sigma=1.6] [strength=1.0] [-p] [-h] [-m <mask>]
+/dbr gblur [radius=5] [sigma=1.6] [strength=1.0] [-p] [-h] [-m <mask>]
+```
+Aliases: `/gblur`, `//colorblur`, `//blurbrush`
+
+Hold any item and run `//gblur` to bind a 3D Gaussian color blur brush. Works with FAWE `/size`, `//mask`, `//gmask`, and `//undo`.
+- Blurs colors smoothly across full blocks **and** sub-blocks while strictly keeping every sub-block's original class and blockstate (`*_stairs` stay stairs with the exact same `facing`, `half`, and corner `shape`; `*_slab`, `*_wall`, `*_fence`, `*_trapdoor`, `*_carpet`, `*_pane`, `*_button`, `*_pressure_plate`, and `*_leaves` all keep their exact geometry).
+- `-p` restrict blurred colors to block families already inside the brush sphere
+- `-h` hard sphere edge (disable smooth outer-rim feathering)
+- `-m <mask>` optional WorldEdit brush mask
+
+### Sub-Block BlendBall Brush (`//subblend`)
+```text
+//subblend [radius=5] [minDiff=1] [-a] [-g] [-w] [-y] [-m <mask>]
+/dbr subblend [radius=5] [minDiff=1] [-a] [-g] [-w] [-y] [-m <mask>]
+```
+Aliases: `/subblend`, `//sblend`, `//blendballsub`, `//subblendball`
+
+Hold any item and run `//subblend` to bind a `2x2x2` sub-voxel BlendBall brush.
+- Decodes existing full cubes, stairs, slabs, walls, trapdoors, and snow layers into an 8-octant (`0.5`-block) grid, smooths occupancy with 26-neighbor BlendBall voting, and synthesizes backed directional straight stairs, `inner_left`/`inner_right`/`outer_left`/`outer_right` corner stairs, and top/bottom slabs while blending neighbor material families.
+- `-a` compare solid vs air only (keep existing block materials)
+- `-g` smooth geometry into stairs/slabs without blending neighbor materials
+- `-w` allow walls on thin vertical ribs/pillars
+- `-y` allow snow layers on gentle slopes
+- `-m <mask>` optional WorldEdit brush mask
 
 ### 3D Models (`//model`)
 ```text
@@ -146,7 +174,7 @@ Extrudes 3D text using `<block>` (can be any WorldEdit pattern). Use `_` for spa
 ./gradlew build
 ```
 
-The compiled JAR is written to `build/libs/DragonBuildTools-2.1.0.jar`.
+The compiled JAR is written to `build/libs/DragonBuildTools-2.2.0.jar`.
 
 ---
 *Logo by Dustbeam.*

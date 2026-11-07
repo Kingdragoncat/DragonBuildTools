@@ -14,6 +14,13 @@ import com.dragonbuildtools.animation.AnimationManager;
 import com.dragonbuildtools.animation.AnimationManager.ActiveAnimation;
 import com.dragonbuildtools.animation.AnimationManager.BlockDelta;
 import com.dragonbuildtools.animation.VideoAndGifEngine;
+import com.dragonbuildtools.brush.GaussianColorBlurBrush;
+import com.dragonbuildtools.brush.SubBlockBlendBallBrush;
+import com.dragonbuildtools.brush.SubBlockBlendBallBrush.SynthesizedKind;
+import com.dragonbuildtools.brush.SubBlockBlendBallBrush.SynthesizedShape;
+import com.dragonbuildtools.brush.SubBlockRecolorUtil;
+import com.dragonbuildtools.brush.SubBlockRecolorUtil.CandidateColorEntry;
+import com.dragonbuildtools.brush.SubBlockRecolorUtil.RecolorBucket;
 import com.dragonbuildtools.command.DbtWorldEditCommandsRegistration;
 import com.dragonbuildtools.converter.HeightmapTerrainGenerator;
 import com.dragonbuildtools.converter.ImagePixelArtConverter;
@@ -168,6 +175,12 @@ class DragonBuildToolsTest {
         assertTrue(cm.containsCommand("newwfc"));
         assertTrue(cm.containsCommand("exportobj"));
         assertTrue(cm.containsCommand("schemtoobj"));
+        assertTrue(cm.containsCommand("gblur"));
+        assertTrue(cm.containsCommand("/gblur"));
+        assertTrue(cm.containsCommand("subblend"));
+        assertTrue(cm.containsCommand("/subblend"));
+        assertTrue(cm.containsCommand("dbr"));
+        assertTrue(cm.containsCommand("/dbr"));
 
         // Verify that invoking a command action calls listenersBeforeCall (which FAWE's ProvideBindings.editSession requires)
         try {
@@ -397,6 +410,207 @@ class DragonBuildToolsTest {
         assertFalse(tri.material.multiplyTextureByKd,
                 "Wavefront .mtl Kd + map_Kd must not double-multiply Kd onto texture brightness");
         assertEquals(220, (tri.material.texture.getRGB(0, 0) >> 16) & 0xFF, 2);
+    }
+
+    @Test
+    void testGaussianColorBlurConvolutionAndSubBlockPreservation() {
+        // 1. Verify normalized 3D Gaussian convolution blurs red + white walls into intermediate pink/coral
+        //    while completely ignoring zero-weight air voxels (never darkening toward black)
+        int nx = 8, ny = 5, nz = 5;
+        int total = nx * ny * nz;
+        float[] wr = new float[total];
+        float[] wg = new float[total];
+        float[] wb = new float[total];
+        float[] ww = new float[total];
+
+        // Place a 1-thick vertical wall at z=2: left half (x=0..3) red (200, 30, 30), right half (x=4..7) white (240, 240, 240)
+        // Everything at z != 2 is zero-weight AIR
+        for (int y = 0; y < ny; y++) {
+            int row = (y * nz + 2) * nx;
+            for (int x = 0; x < nx; x++) {
+                int idx = row + x;
+                ww[idx] = 1.0f;
+                if (x < 4) {
+                    wr[idx] = 200f;
+                    wg[idx] = 30f;
+                    wb[idx] = 30f;
+                } else {
+                    wr[idx] = 240f;
+                    wg[idx] = 240f;
+                    wb[idx] = 240f;
+                }
+            }
+        }
+
+        GaussianColorBlurBrush.convolve3DNormalizedGaussian(wr, wg, wb, ww, nx, ny, nz, 1.6);
+
+        int seamLeft = (2 * nz + 2) * nx + 3;
+        int seamRight = (2 * nz + 2) * nx + 4;
+        assertTrue(ww[seamLeft] > 0.1f && ww[seamRight] > 0.1f);
+        float blurredLeftR = wr[seamLeft] / ww[seamLeft];
+        float blurredLeftG = wg[seamLeft] / ww[seamLeft];
+        float blurredRightG = wg[seamRight] / ww[seamRight];
+
+        assertTrue(blurredLeftR > 205f && blurredLeftR < 235f,
+                "Normalized Gaussian must not darken toward air black; got R=" + blurredLeftR);
+        assertTrue(blurredLeftG > 70f && blurredLeftG < 150f,
+                "Red side of seam must blur smoothly toward white; got G=" + blurredLeftG);
+        assertTrue(blurredRightG > 120f && blurredRightG < 200f,
+                "White side of seam must blur smoothly toward red; got G=" + blurredRightG);
+
+        // 2. Verify every sub-block class strictly recolors ONLY to another block of the exact same sub-block class
+        assertEquals(RecolorBucket.STAIRS, SubBlockRecolorUtil.classifyBucketByName("minecraft:oak_stairs"));
+        assertEquals(RecolorBucket.SLAB, SubBlockRecolorUtil.classifyBucketByName("stone_brick_slab"));
+        assertEquals(RecolorBucket.WALL, SubBlockRecolorUtil.classifyBucketByName("cobblestone_wall"));
+        assertEquals(RecolorBucket.FENCE, SubBlockRecolorUtil.classifyBucketByName("spruce_fence"));
+        assertEquals(RecolorBucket.FENCE_GATE, SubBlockRecolorUtil.classifyBucketByName("birch_fence_gate"));
+        assertEquals(RecolorBucket.TRAPDOOR, SubBlockRecolorUtil.classifyBucketByName("dark_oak_trapdoor"));
+        assertEquals(RecolorBucket.CARPET, SubBlockRecolorUtil.classifyBucketByName("red_carpet"));
+        assertEquals(RecolorBucket.PANE, SubBlockRecolorUtil.classifyBucketByName("white_stained_glass_pane"));
+        assertEquals(RecolorBucket.BUTTON, SubBlockRecolorUtil.classifyBucketByName("cherry_button"));
+        assertEquals(RecolorBucket.PLATE, SubBlockRecolorUtil.classifyBucketByName("mangrove_pressure_plate"));
+        assertEquals(RecolorBucket.LEAVES, SubBlockRecolorUtil.classifyBucketByName("oak_leaves"));
+        assertEquals(RecolorBucket.TRANSLUCENT_CUBE, SubBlockRecolorUtil.classifyBucketByName("red_stained_glass"));
+        assertEquals(RecolorBucket.FIXED, SubBlockRecolorUtil.classifyBucketByName("air"));
+        assertEquals(RecolorBucket.FIXED, SubBlockRecolorUtil.classifyBucketByName("snow"));
+
+        int[][] testTargets = {{220, 175, 175}, {40, 40, 45}, {190, 60, 50}, {225, 225, 225}};
+        for (int[] rgb : testTargets) {
+            CandidateColorEntry stairCand = SubBlockRecolorUtil.findBestCandidate(
+                    RecolorBucket.STAIRS, rgb[0], rgb[1], rgb[2], null, false);
+            assertNotNull(stairCand);
+            assertTrue(stairCand.blockName.endsWith("_stairs"), "STAIRS bucket must only return *_stairs, got " + stairCand.blockName);
+            assertFalse(stairCand.blockName.contains("copper") && !stairCand.blockName.startsWith("waxed_"),
+                    "Must never pick unwaxed oxidizable copper: " + stairCand.blockName);
+
+            CandidateColorEntry slabCand = SubBlockRecolorUtil.findBestCandidate(
+                    RecolorBucket.SLAB, rgb[0], rgb[1], rgb[2], null, false);
+            assertNotNull(slabCand);
+            assertTrue(slabCand.blockName.endsWith("_slab"), "SLAB bucket must only return *_slab, got " + slabCand.blockName);
+
+            CandidateColorEntry wallCand = SubBlockRecolorUtil.findBestCandidate(
+                    RecolorBucket.WALL, rgb[0], rgb[1], rgb[2], null, false);
+            assertNotNull(wallCand);
+            assertTrue(wallCand.blockName.endsWith("_wall"), "WALL bucket must only return *_wall, got " + wallCand.blockName);
+
+            CandidateColorEntry fenceCand = SubBlockRecolorUtil.findBestCandidate(
+                    RecolorBucket.FENCE, rgb[0], rgb[1], rgb[2], null, false);
+            assertNotNull(fenceCand);
+            assertTrue(fenceCand.blockName.endsWith("_fence"), "FENCE bucket must only return *_fence, got " + fenceCand.blockName);
+
+            CandidateColorEntry trapCand = SubBlockRecolorUtil.findBestCandidate(
+                    RecolorBucket.TRAPDOOR, rgb[0], rgb[1], rgb[2], null, false);
+            assertNotNull(trapCand);
+            assertTrue(trapCand.blockName.endsWith("_trapdoor"), "TRAPDOOR bucket must only return *_trapdoor, got " + trapCand.blockName);
+
+            CandidateColorEntry carpetCand = SubBlockRecolorUtil.findBestCandidate(
+                    RecolorBucket.CARPET, rgb[0], rgb[1], rgb[2], null, false);
+            assertNotNull(carpetCand);
+            assertTrue(carpetCand.blockName.endsWith("_carpet"), "CARPET bucket must only return *_carpet, got " + carpetCand.blockName);
+
+            CandidateColorEntry leavesCand = SubBlockRecolorUtil.findBestCandidate(
+                    RecolorBucket.LEAVES, rgb[0], rgb[1], rgb[2], null, false);
+            assertNotNull(leavesCand);
+            assertTrue(leavesCand.blockName.endsWith("_leaves"), "LEAVES bucket must only return *_leaves, got " + leavesCand.blockName);
+        }
+
+        // 3. Verify local-palette (-p) expansion links full blocks and sibling sub-blocks
+        java.util.Set<String> expanded = SubBlockRecolorUtil.expandLocalPaletteFamilies(
+                java.util.Set.of("cherry_planks", "deepslate_bricks")
+        );
+        assertTrue(expanded.contains("cherry_stairs") && expanded.contains("cherry_slab"));
+        assertTrue(expanded.contains("deepslate_brick_stairs") && expanded.contains("deepslate_brick_slab"));
+    }
+
+    @Test
+    void testSubBlockBlendBallOctantSmoothingAndSynthesis() {
+        int n = 9;
+        int total = n * n * n;
+
+        // A. Flat floor invariance: y <= 2 solid, y > 2 air -> must stay 100% unchanged
+        byte[] flatGrid = new byte[total];
+        for (int y = 0; y <= 2; y++) {
+            for (int z = 0; z < n; z++) {
+                for (int x = 0; x < n; x++) {
+                    flatGrid[(y * n + z) * n + x] = (byte) SubBlockBlendBallBrush.FULL_MASK;
+                }
+            }
+        }
+        byte[] flatSmoothed = SubBlockBlendBallBrush.smoothOctantGrid(flatGrid, n, n, n, 4, 2, 4, 3.5, 2, true);
+        assertEquals(SubBlockBlendBallBrush.FULL_MASK, flatSmoothed[(2 * n + 4) * n + 4] & 0xFF,
+                "Flat floor surface block must remain a full block");
+        assertEquals(0, flatSmoothed[(3 * n + 4) * n + 4] & 0xFF,
+                "Air above a flat floor must remain empty");
+
+        // B. 45-degree raised step (y=3 solid for z >= 4, air for z < 4) -> chamfers step edge into bottom straight SOUTH stairs
+        byte[] stepGrid = flatGrid.clone();
+        for (int z = 4; z < n; z++) {
+            for (int x = 0; x < n; x++) {
+                stepGrid[(3 * n + z) * n + x] = (byte) SubBlockBlendBallBrush.FULL_MASK;
+            }
+        }
+        byte[] stepSmoothed = SubBlockBlendBallBrush.smoothOctantGrid(stepGrid, n, n, n, 4, 3, 4, 3.5, 2, true);
+        int stepEdgeOct = stepSmoothed[(3 * n + 4) * n + 4] & 0xFF;
+        assertEquals(SubBlockBlendBallBrush.encodeStairOctants("south", "bottom", "straight"), stepEdgeOct);
+
+        SynthesizedShape stepShape = sampleClassifiedShape(stepSmoothed, n, 4, 3, 4);
+        assertEquals(SynthesizedKind.STAIRS, stepShape.kind);
+        assertEquals("bottom", stepShape.half);
+        assertEquals("straight", stepShape.stairShape);
+        assertEquals(com.sk89q.worldedit.util.Direction.SOUTH, stepShape.facing);
+
+        // Fringe block right in front of the chamfered step (x=4, y=3, z=3) must stay clean AIR (no floating slab clutter)
+        SynthesizedShape fringeShape = sampleClassifiedShape(stepSmoothed, n, 4, 3, 3);
+        assertEquals(SynthesizedKind.AIR, fringeShape.kind);
+
+        // C. 3D Outer Corner (y=3 solid for x >= 4 && z >= 4) -> chamfers corner (4,3,4) into an outer corner stair
+        byte[] outerGrid = flatGrid.clone();
+        for (int z = 4; z < n; z++) {
+            for (int x = 4; x < n; x++) {
+                outerGrid[(3 * n + z) * n + x] = (byte) SubBlockBlendBallBrush.FULL_MASK;
+            }
+        }
+        byte[] outerSmoothed = SubBlockBlendBallBrush.smoothOctantGrid(outerGrid, n, n, n, 4, 3, 4, 3.5, 2, true);
+        SynthesizedShape outerShape = sampleClassifiedShape(outerSmoothed, n, 4, 3, 4);
+        assertEquals(SynthesizedKind.STAIRS, outerShape.kind);
+        assertEquals("bottom", outerShape.half);
+        assertTrue(outerShape.stairShape.startsWith("outer_"),
+                "3D outer corner must synthesize an outer_* corner stair, got " + outerShape.stairShape);
+
+        // D. 1-block isolated bump on flat floor -> Pass 1 becomes bottom SLAB, Pass 2 smooths away to AIR
+        byte[] bumpGrid = flatGrid.clone();
+        bumpGrid[(3 * n + 4) * n + 4] = (byte) SubBlockBlendBallBrush.FULL_MASK;
+        byte[] bumpPass1 = SubBlockBlendBallBrush.smoothOctantGrid(bumpGrid, n, n, n, 4, 3, 4, 3.5, 2, true);
+        SynthesizedShape bumpShape1 = sampleClassifiedShape(bumpPass1, n, 4, 3, 4);
+        assertEquals(SynthesizedKind.SLAB, bumpShape1.kind, "1-block bump must soften into a bottom slab on pass 1");
+        assertEquals("bottom", bumpShape1.half);
+
+        byte[] bumpPass2 = SubBlockBlendBallBrush.smoothOctantGrid(bumpPass1, n, n, n, 4, 3, 4, 3.5, 2, true);
+        SynthesizedShape bumpShape2 = sampleClassifiedShape(bumpPass2, n, 4, 3, 4);
+        assertEquals(SynthesizedKind.AIR, bumpShape2.kind, "Bottom slab bump must smooth completely to air on pass 2");
+
+        // E. 1-block isolated pothole in flat floor -> Pass 1 fills to bottom SLAB, Pass 2 fills to FULL_BLOCK
+        byte[] holeGrid = flatGrid.clone();
+        holeGrid[(2 * n + 4) * n + 4] = 0;
+        byte[] holePass1 = SubBlockBlendBallBrush.smoothOctantGrid(holeGrid, n, n, n, 4, 2, 4, 3.5, 2, true);
+        SynthesizedShape holeShape1 = sampleClassifiedShape(holePass1, n, 4, 2, 4);
+        assertEquals(SynthesizedKind.SLAB, holeShape1.kind, "1-block pothole must partially fill with a bottom slab on pass 1");
+        assertEquals("bottom", holeShape1.half);
+
+        byte[] holePass2 = SubBlockBlendBallBrush.smoothOctantGrid(holePass1, n, n, n, 4, 2, 4, 3.5, 2, true);
+        SynthesizedShape holeShape2 = sampleClassifiedShape(holePass2, n, 4, 2, 4);
+        assertEquals(SynthesizedKind.FULL_BLOCK, holeShape2.kind, "Bottom slab pothole must fill to a full block on pass 2");
+    }
+
+    private static SynthesizedShape sampleClassifiedShape(byte[] grid, int n, int x, int y, int z) {
+        int oct = grid[(y * n + z) * n + x] & 0xFF;
+        int down = grid[((y - 1) * n + z) * n + x] & 0xFF;
+        int up = grid[((y + 1) * n + z) * n + x] & 0xFF;
+        int north = grid[(y * n + (z - 1)) * n + x] & 0xFF;
+        int south = grid[(y * n + (z + 1)) * n + x] & 0xFF;
+        int west = grid[(y * n + z) * n + (x - 1)] & 0xFF;
+        int east = grid[(y * n + z) * n + (x + 1)] & 0xFF;
+        return SubBlockBlendBallBrush.classifyOctantShape(oct, down, up, north, south, west, east, false, false);
     }
 
     private static void writeZipText(ZipOutputStream zos, String entryName, String text) throws Exception {

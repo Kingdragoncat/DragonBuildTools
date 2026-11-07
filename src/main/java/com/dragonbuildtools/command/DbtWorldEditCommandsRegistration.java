@@ -89,6 +89,25 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
             String.class, boolean.class, boolean.class, boolean.class, int.class, boolean.class
     };
 
+    private static final Class<?>[] GBLUR_PARAM_TYPES = new Class<?>[]{
+            Player.class, LocalSession.class,
+            double.class, double.class, double.class,
+            boolean.class, boolean.class, String.class
+    };
+
+    private static final Class<?>[] SUBBLEND_PARAM_TYPES = new Class<?>[]{
+            Player.class, LocalSession.class,
+            double.class, int.class,
+            boolean.class, boolean.class, boolean.class, boolean.class, String.class
+    };
+
+    private static final Class<?>[] DBR_PARAM_TYPES = new Class<?>[]{
+            Player.class, LocalSession.class,
+            String.class, double.class, double.class, double.class,
+            boolean.class, boolean.class, boolean.class, boolean.class, boolean.class, boolean.class,
+            String.class
+    };
+
     private CommandManager manager;
     private DbtWorldEditCommands container;
     private CommandPermissionsConditionGenerator permissionsConditionGenerator;
@@ -162,6 +181,23 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
     private final ArgAcceptingCommandFlag exportPackFlag = valueFlag('p', "pack", "auto", "Resource pack in resourcepacks/ (or 'colors')", STRING_KEY);
     private final CommandArgument exportNameArg = arg("name", "Output .obj filename", "exported_build", STRING_KEY);
     private final CommandArgument exportPackArg = arg("pack", "Optional resource pack in resourcepacks/ (or 'auto' / 'colors')", "auto", STRING_KEY);
+
+    // Brush arguments & flags
+    private final CommandArgument dbrTypeArg = arg("brush", "Brush type: gblur or subblend", "list", STRING_KEY);
+    private final CommandArgument brushRadiusArg = arg("radius", "Brush sphere radius (1-40)", "5", DOUBLE_KEY);
+    private final CommandArgument gblurSigmaArg = arg("sigma", "3D Gaussian blur sigma (0.35-6.0)", "1.6", DOUBLE_KEY);
+    private final CommandArgument gblurStrengthArg = arg("strength", "Blend strength (0.05-1.0)", "1.0", DOUBLE_KEY);
+    private final CommandArgument subBlendMinDiffArg = arg("minDiff", "Minimum neighbor frequency margin (1-10)", "1", INTEGER_KEY);
+    private final CommandArgument dbrParam2Arg = arg("param2", "Sigma (for gblur) or minDiff (for subblend)", "-1", DOUBLE_KEY);
+    private final CommandArgument dbrParam3Arg = arg("param3", "Strength (for gblur, 0.05-1.0)", "-1", DOUBLE_KEY);
+
+    private final NoArgCommandFlag brushLocalPaletteFlag = flag('p', "Restrict blurred colors to block families already in the brush sphere");
+    private final NoArgCommandFlag brushHardEdgeFlag = flag('h', "Disable smooth outer-rim feathering");
+    private final NoArgCommandFlag brushAirOnlyFlag = flag('a', "Compare solid vs air only (keep existing solid materials)");
+    private final NoArgCommandFlag brushGeomOnlyFlag = flag('g', "Smooth geometry into stairs/slabs without blending neighbor materials");
+    private final NoArgCommandFlag brushWallsFlag = flag('w', "Allow synthesizing walls on thin vertical ribs");
+    private final NoArgCommandFlag brushSnowFlag = flag('y', "Allow synthesizing snow layers on gentle slopes");
+    private final ArgAcceptingCommandFlag brushMaskFlag = valueFlag('m', "mask", "", "Optional WorldEdit mask for the brush", STRING_KEY);
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static CommandArgument arg(String name, String desc, String def, Key<?> key) {
@@ -281,6 +317,28 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
                         wfcGridSizeArg, wfcPieceSizeArg, wfcVariationsArg, wfcAdherenceArg, wfcTimeoutArg),
                 this::invokeNewWfc,
                 getMethod("newWfcCommand", NEW_WFC_PARAM_TYPES));
+
+        registerCollisionSafe("gblur", ImmutableList.of("/gblur", "colorblur", "/colorblur", "blurbrush", "/blurbrush"),
+                "Equip 3D Gaussian Color Blur Brush (blurs colors across blocks & sub-blocks while preserving sub-block shape)",
+                ImmutableList.of(brushLocalPaletteFlag, brushHardEdgeFlag, brushMaskFlag,
+                        brushRadiusArg, gblurSigmaArg, gblurStrengthArg),
+                this::invokeGaussianBlurBrush,
+                getMethod("gaussianBlurBrushCommand", GBLUR_PARAM_TYPES));
+
+        registerCollisionSafe("subblend", ImmutableList.of("/subblend", "sblend", "/sblend", "blendballsub", "/blendballsub", "subblendball", "/subblendball"),
+                "Equip Sub-Block BlendBall Brush (2x2x2 octant BlendBall that synthesizes stairs, corner stairs & slabs)",
+                ImmutableList.of(brushAirOnlyFlag, brushGeomOnlyFlag, brushWallsFlag, brushSnowFlag, brushMaskFlag,
+                        brushRadiusArg, subBlendMinDiffArg),
+                this::invokeSubBlockBlendBall,
+                getMethod("subBlockBlendBallCommand", SUBBLEND_PARAM_TYPES));
+
+        registerCollisionSafe("dbr", ImmutableList.of("/dbr", "dragonbrush", "/dragonbrush"),
+                "Equip a Dragon Build Tools brush: /dbr <gblur|subblend> [radius=5] ...",
+                ImmutableList.of(brushLocalPaletteFlag, brushHardEdgeFlag, brushAirOnlyFlag, brushGeomOnlyFlag,
+                        brushWallsFlag, brushSnowFlag, brushMaskFlag,
+                        dbrTypeArg, brushRadiusArg, dbrParam2Arg, dbrParam3Arg),
+                this::invokeDragonBrush,
+                getMethod("dragonBrushCommand", DBR_PARAM_TYPES));
     }
 
     private Method getMethod(String name, Class<?>... params) {
@@ -572,6 +630,87 @@ public final class DbtWorldEditCommandsRegistration implements CommandRegistrati
                     wfcContinuousFlag.in(params),
                     lazyTolerance,
                     wfcOuterBoundaryFlag.in(params)
+            );
+            RegistrationUtil.listenersAfterCall(this.callListeners, method, params);
+            return 1;
+        } catch (Throwable t) {
+            RegistrationUtil.listenersAfterThrow(this.callListeners, method, params, t);
+            throw t;
+        }
+    }
+
+    private int invokeGaussianBlurBrush(CommandParameters params) {
+        Method method = getMethod("gaussianBlurBrushCommand", GBLUR_PARAM_TYPES);
+        RegistrationUtil.listenersBeforeCall(this.callListeners, method, params);
+        try {
+            String maskVal = params.has(brushMaskFlag)
+                    ? (String) brushMaskFlag.value(params).asSingle(STRING_KEY)
+                    : "";
+            container.gaussianBlurBrushCommand(
+                    extractPlayer(params),
+                    extractSession(params),
+                    (Double) brushRadiusArg.value(params).asSingle(DOUBLE_KEY),
+                    (Double) gblurSigmaArg.value(params).asSingle(DOUBLE_KEY),
+                    (Double) gblurStrengthArg.value(params).asSingle(DOUBLE_KEY),
+                    brushLocalPaletteFlag.in(params),
+                    brushHardEdgeFlag.in(params),
+                    maskVal
+            );
+            RegistrationUtil.listenersAfterCall(this.callListeners, method, params);
+            return 1;
+        } catch (Throwable t) {
+            RegistrationUtil.listenersAfterThrow(this.callListeners, method, params, t);
+            throw t;
+        }
+    }
+
+    private int invokeSubBlockBlendBall(CommandParameters params) {
+        Method method = getMethod("subBlockBlendBallCommand", SUBBLEND_PARAM_TYPES);
+        RegistrationUtil.listenersBeforeCall(this.callListeners, method, params);
+        try {
+            String maskVal = params.has(brushMaskFlag)
+                    ? (String) brushMaskFlag.value(params).asSingle(STRING_KEY)
+                    : "";
+            container.subBlockBlendBallCommand(
+                    extractPlayer(params),
+                    extractSession(params),
+                    (Double) brushRadiusArg.value(params).asSingle(DOUBLE_KEY),
+                    (Integer) subBlendMinDiffArg.value(params).asSingle(INTEGER_KEY),
+                    brushAirOnlyFlag.in(params),
+                    brushGeomOnlyFlag.in(params),
+                    brushWallsFlag.in(params),
+                    brushSnowFlag.in(params),
+                    maskVal
+            );
+            RegistrationUtil.listenersAfterCall(this.callListeners, method, params);
+            return 1;
+        } catch (Throwable t) {
+            RegistrationUtil.listenersAfterThrow(this.callListeners, method, params, t);
+            throw t;
+        }
+    }
+
+    private int invokeDragonBrush(CommandParameters params) {
+        Method method = getMethod("dragonBrushCommand", DBR_PARAM_TYPES);
+        RegistrationUtil.listenersBeforeCall(this.callListeners, method, params);
+        try {
+            String maskVal = params.has(brushMaskFlag)
+                    ? (String) brushMaskFlag.value(params).asSingle(STRING_KEY)
+                    : "";
+            container.dragonBrushCommand(
+                    extractPlayer(params),
+                    extractSession(params),
+                    (String) dbrTypeArg.value(params).asSingle(STRING_KEY),
+                    (Double) brushRadiusArg.value(params).asSingle(DOUBLE_KEY),
+                    (Double) dbrParam2Arg.value(params).asSingle(DOUBLE_KEY),
+                    (Double) dbrParam3Arg.value(params).asSingle(DOUBLE_KEY),
+                    brushLocalPaletteFlag.in(params),
+                    brushHardEdgeFlag.in(params),
+                    brushAirOnlyFlag.in(params),
+                    brushGeomOnlyFlag.in(params),
+                    brushWallsFlag.in(params),
+                    brushSnowFlag.in(params),
+                    maskVal
             );
             RegistrationUtil.listenersAfterCall(this.callListeners, method, params);
             return 1;

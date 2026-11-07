@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.dragonbuildtools"
-version = "2.1.0"
+version = "2.2.0"
 
 val baselinePaperApi = "1.21.8-R0.1-SNAPSHOT"
 

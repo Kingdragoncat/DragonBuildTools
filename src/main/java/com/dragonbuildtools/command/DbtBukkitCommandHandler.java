@@ -31,7 +31,7 @@ import org.bukkit.entity.Player;
 public class DbtBukkitCommandHandler implements CommandExecutor, TabCompleter {
 
     private static final List<String> TOPICS = Arrays.asList(
-            "gui", "demo", "help", "pixelart", "model", "animmodel", "video", "anim", "heightmap", "text3d", "exportobj", "newwfc", "files"
+            "gui", "demo", "help", "gblur", "subblend", "brushes", "pixelart", "model", "animmodel", "video", "anim", "heightmap", "text3d", "exportobj", "newwfc", "files"
     );
     private static final List<String> DEMO_NAMES = Arrays.asList(
             "dragon", "cinema", "knot", "terrain", "text", "setup"
@@ -236,10 +236,45 @@ public class DbtBukkitCommandHandler implements CommandExecutor, TabCompleter {
                 sender.sendMessage(ChatColor.WHITE + "  -m        " + ChatColor.GRAY + "Also copy into models/ so you can re-import or //animmodel it");
                 return;
             }
+            case "gblur":
+            case "colorblur":
+            case "blurbrush":
+            case "blur": {
+                sender.sendMessage(ChatColor.DARK_AQUA + "=== " + ChatColor.GOLD + "DBT: 3D Gaussian Color Blur Brush (//gblur)" + ChatColor.DARK_AQUA + " ===");
+                sender.sendMessage(ChatColor.AQUA + "//gblur [radius=5] [sigma=1.6] [strength=1.0] [-p] [-h] [-m <mask>]");
+                sender.sendMessage(ChatColor.GRAY + "Aliases: " + ChatColor.WHITE + "/gblur, //colorblur, //blurbrush, /dbr gblur");
+                sender.sendMessage(ChatColor.GRAY + "Blurs sRGB colors smoothly across blocks & sub-blocks in 3D space.");
+                sender.sendMessage(ChatColor.GRAY + "Sub-blocks (stairs, slabs, walls, fences, trapdoors, carpets, panes, leaves) blur color while keeping their exact shape & facing!");
+                sender.sendMessage(ChatColor.YELLOW + "Flags:");
+                sender.sendMessage(ChatColor.WHITE + "  -p        " + ChatColor.GRAY + "Restrict blurred colors to block families already inside the brush sphere");
+                sender.sendMessage(ChatColor.WHITE + "  -h        " + ChatColor.GRAY + "Hard sphere edge (disable smooth outer-rim feathering)");
+                sender.sendMessage(ChatColor.WHITE + "  -m <mask> " + ChatColor.GRAY + "Optional WorldEdit mask");
+                return;
+            }
+            case "subblend":
+            case "sblend":
+            case "blendballsub":
+            case "subblendball":
+            case "brushes":
+            case "dbr": {
+                sender.sendMessage(ChatColor.DARK_AQUA + "=== " + ChatColor.GOLD + "DBT: Sub-Block BlendBall Brush (//subblend)" + ChatColor.DARK_AQUA + " ===");
+                sender.sendMessage(ChatColor.AQUA + "//subblend [radius=5] [minDiff=1] [-a] [-g] [-w] [-y] [-m <mask>]");
+                sender.sendMessage(ChatColor.GRAY + "Aliases: " + ChatColor.WHITE + "/subblend, //sblend, //blendballsub, /dbr subblend");
+                sender.sendMessage(ChatColor.GRAY + "Works like FAWE /br blendball at 2x2x2 sub-voxel resolution, smoothing jagged steps, corners, bumps & holes into directional stairs, corner stairs & slabs.");
+                sender.sendMessage(ChatColor.YELLOW + "Flags:");
+                sender.sendMessage(ChatColor.WHITE + "  -a        " + ChatColor.GRAY + "Compare solid vs air only (keep existing block materials)");
+                sender.sendMessage(ChatColor.WHITE + "  -g        " + ChatColor.GRAY + "Geometry-only smoothing (do not blend neighbor materials)");
+                sender.sendMessage(ChatColor.WHITE + "  -w        " + ChatColor.GRAY + "Allow walls on thin vertical pillars/ribs");
+                sender.sendMessage(ChatColor.WHITE + "  -y        " + ChatColor.GRAY + "Allow snow layers on gentle slopes");
+                sender.sendMessage(ChatColor.WHITE + "  -m <mask> " + ChatColor.GRAY + "Optional WorldEdit mask (also works with //gblur!)");
+                return;
+            }
             default: {
-                sender.sendMessage(ChatColor.DARK_AQUA + "=== " + ChatColor.GOLD + "Dragon Build Tools (DBT) v2.1" + ChatColor.DARK_AQUA + " ===");
+                sender.sendMessage(ChatColor.DARK_AQUA + "=== " + ChatColor.GOLD + "Dragon Build Tools (DBT) v2.2" + ChatColor.DARK_AQUA + " ===");
                 sender.sendMessage(ChatColor.YELLOW + "Commands " + ChatColor.GRAY + "(run " + ChatColor.WHITE + "/dbt" + ChatColor.GRAY + " for GUI or " + ChatColor.WHITE + "/dbt help <topic>" + ChatColor.GRAY + "):");
                 sender.sendMessage(ChatColor.AQUA + "  /dbt                              " + ChatColor.GRAY + "- Open interactive Chest Studio GUI");
+                sender.sendMessage(ChatColor.AQUA + "  //gblur [r=5] [sigma=1.6] [str=1] " + ChatColor.GRAY + "- 3D Gaussian Color Blur Brush (-p, -h, -m)");
+                sender.sendMessage(ChatColor.AQUA + "  //subblend [r=5] [minDiff=1]      " + ChatColor.GRAY + "- Sub-Block BlendBall Brush (-a, -g, -w, -y)");
                 sender.sendMessage(ChatColor.AQUA + "  /dbt demo <dragon|cinema|knot...> " + ChatColor.GRAY + "- Spawn built-in starter demos right away");
                 sender.sendMessage(ChatColor.AQUA + "  //model <src> [size] [block]      " + ChatColor.GRAY + "- 3D Model to Build (-s, -l, -b, -c, -o)");
                 sender.sendMessage(ChatColor.AQUA + "  //animmodel <src> [size] [mode]   " + ChatColor.GRAY + "- Animated 3D Model (wingflap/spin/hover/etc.)");

@@ -4,11 +4,11 @@ version: ${version}
 api-version: '1.20'
 depend: [FastAsyncWorldEdit]
 authors: [Kingdragoncat, Dustbeam]
-description: Building, 3D importing, animation, and procedural generation tools for FastAsyncWorldEdit.
+description: Sculpting brushes, 3D importing/exporting, animation, and procedural generation tools for FastAsyncWorldEdit.
 commands:
   dbt:
-    description: Dragon Build Tools Studio GUI, instant demos, and command guide
-    usage: /dbt [gui|demo|help|pixelart|model|animmodel|video|heightmap|text3d|exportobj|newwfc|anim|files]
+    description: Dragon Build Tools Studio GUI, brushes, instant demos, and command guide
+    usage: /dbt [gui|demo|help|gblur|subblend|pixelart|model|animmodel|video|heightmap|text3d|exportobj|newwfc|anim|files]
     aliases: [dragonbuildtools, dbtools]
 permissions:
   dragonbuildtools.use:
